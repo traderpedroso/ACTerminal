@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 mod datafeed;
 mod ui;
 
-use datafeed::{DataFeedSubscriber, DataType, DomData, QuoteData, SymbolManager, TickData};
+use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData};
 use ui::{
     BatteryInfo, DiskInfo, DomView, StatusBarData, TimesAndSalesEntry, TimesAndSalesView,
     render_status_bar,
@@ -268,7 +268,7 @@ pub struct SystemMonitor {
     datafeed_rx: Option<mpsc::Receiver<(String, DataType, String)>>,
     symbol_select: Entity<SelectState<Vec<SharedString>>>,
     current_symbol: Arc<RwLock<String>>,
-    subscriber: DataFeedSubscriber,
+    subscriber: Arc<dyn DataFeedProvider>,
     symbol_manager: Arc<SymbolManager>,
 }
 
@@ -307,7 +307,7 @@ impl SystemMonitor {
         let symbol_manager = Arc::new(SymbolManager::new(change_tx));
 
         // ── Start datafeed subscriber ─────────────────────────────────────────
-        let subscriber = DataFeedSubscriber::new();
+        let subscriber = create_provider(DataFeedBackend::Zmq);
 
         // Subscribe to initial symbol
         subscriber.subscribe("6E", DataType::Tick);
@@ -776,7 +776,7 @@ impl SystemMonitor {
             // DOM panel (fixed width)
             .child(
                 v_flex()
-                    .w(px(260.))
+                    .w(px(310.))
                     .h_full()
                     .border_r_1()
                     .border_color(cx.theme().border)
@@ -930,7 +930,7 @@ fn main() {
 
         let window_options = WindowOptions {
             titlebar: Some(TitleBar::title_bar_options()),
-            window_bounds: Some(WindowBounds::centered(size(px(700.), px(500.)), cx)),
+            window_bounds: Some(WindowBounds::centered(size(px(820.), px(780.)), cx)),
             ..Default::default()
         };
 

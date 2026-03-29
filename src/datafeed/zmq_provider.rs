@@ -1,18 +1,17 @@
-use crate::datafeed::{DataType, dom_to_json, quote_to_json, tick_to_json};
+use crate::datafeed::{dom_to_json, quote_to_json, tick_to_json, DataFeedProvider, DataType};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tokio::sync::mpsc;
 use zmq::Context;
 
-#[derive(Clone)]
-pub struct DataFeedSubscriber {
+pub struct ZmqProvider {
     context: Arc<Context>,
     subscriptions: Arc<Mutex<HashMap<String, DataType>>>,
     shutdown_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
 }
 
-impl DataFeedSubscriber {
+impl ZmqProvider {
     pub fn new() -> Self {
         Self {
             context: Arc::new(Context::new()),
@@ -49,7 +48,6 @@ impl DataFeedSubscriber {
 
         *self.shutdown_tx.lock().unwrap() = Some(shutdown_tx);
 
-        // Single thread that handles both subscription management and message receiving
         thread::spawn(move || {
             let socket = match context.socket(zmq::SUB) {
                 Ok(s) => s,
@@ -68,7 +66,6 @@ impl DataFeedSubscriber {
             let socket_clone = socket.clone();
             let subscriptions_clone = subscriptions.clone();
 
-            // Thread for managing subscriptions
             thread::spawn(move || {
                 let mut current_subscriptions: HashMap<String, DataType> = HashMap::new();
 
@@ -114,14 +111,11 @@ impl DataFeedSubscriber {
                 }
             });
 
-            // Use blocking recv like the working test code
             loop {
-                // Check for shutdown
                 if shutdown_rx.try_recv().is_ok() {
                     break;
                 }
 
-                // Try to receive with timeout - like the working test code
                 let topic_result = {
                     let socket = socket.lock().unwrap();
                     socket.set_rcvtimeo(100).ok();
@@ -168,9 +162,7 @@ impl DataFeedSubscriber {
                             eprintln!("[SUB] Processing failed for topic: {}", topic_str);
                         }
                     }
-                    _ => {
-                        // Timeout or error - continue loop
-                    }
+                    _ => {}
                 }
             }
         });
@@ -185,8 +177,34 @@ impl DataFeedSubscriber {
     }
 }
 
-impl Default for DataFeedSubscriber {
+impl Default for ZmqProvider {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl DataFeedProvider for ZmqProvider {
+    fn subscribe(&self, symbol: &str, data_type: DataType) {
+        Self::subscribe(self, symbol, data_type);
+    }
+
+    fn unsubscribe(&self, symbol: &str, data_type: DataType) {
+        Self::unsubscribe(self, symbol, data_type);
+    }
+
+    fn is_subscribed(&self, symbol: &str, data_type: DataType) -> bool {
+        Self::is_subscribed(self, symbol, data_type)
+    }
+
+    fn subscriptions_arc(&self) -> Arc<Mutex<HashMap<String, DataType>>> {
+        Self::subscriptions_arc(self)
+    }
+
+    fn start(&self) -> mpsc::Receiver<(String, DataType, String)> {
+        Self::start(self)
+    }
+
+    fn shutdown(&self) {
+        Self::shutdown(self)
     }
 }

@@ -113,6 +113,7 @@ impl TimesAndSalesView {
 
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
         h_flex()
+            .w_full()
             .px_2()
             .py_1()
             .gap_0()
@@ -123,8 +124,8 @@ impl TimesAndSalesView {
             .text_color(cx.theme().muted_foreground)
             .child(div().w(px(70.)).child("Time"))
             .child(div().w(px(80.)).child("Price"))
-            .child(div().w(px(60.)).child("Size"))
-            .child(div().flex_1())
+            .child(div().w(px(50.)).child("Size"))
+            .child(div().flex_1()) // fills remaining space on the right
     }
 
     fn render_row(_i: usize, entry: TimesAndSalesEntry, cx: &Context<Self>) -> impl IntoElement {
@@ -172,14 +173,14 @@ impl TimesAndSalesView {
         };
 
         row.text_color(text)
-            // Time - colored for market/pending
+            // Time
             .child(
                 div()
                     .w(px(70.))
                     .text_color(time_color)
                     .child(entry.time.clone()),
             )
-            // Price (5 decimal places)
+            // Price
             .child(
                 div()
                     .w(px(80.))
@@ -195,10 +196,10 @@ impl TimesAndSalesView {
                     })
                     .child(format!("{:.5}", entry.price)),
             )
-            // Size - colored for pending
+            // Size
             .child(
                 div()
-                    .w(px(60.))
+                    .w(px(50.))
                     .text_color(if is_pending {
                         text
                     } else {
@@ -206,7 +207,7 @@ impl TimesAndSalesView {
                     })
                     .child(format!("{}", entry.size)),
             )
-            // Empty spacer so flex_1 won't stretch Size
+            // Spacer fills the rest of the row to the right
             .child(div().flex_1())
     }
 }
