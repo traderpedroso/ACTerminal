@@ -18,17 +18,24 @@ impl ZenohProvider {
 
     pub fn subscribe(&self, symbol: &str, data_type: DataType) {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().insert(key, data_type);
+        if let Ok(mut guard) = self.subscriptions.lock() {
+            guard.insert(key, data_type);
+        }
     }
 
     pub fn unsubscribe(&self, symbol: &str, data_type: DataType) {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().remove(&key);
+        if let Ok(mut guard) = self.subscriptions.lock() {
+            guard.remove(&key);
+        }
     }
 
     pub fn is_subscribed(&self, symbol: &str, data_type: DataType) -> bool {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().contains_key(&key)
+        self.subscriptions
+            .lock()
+            .map(|guard| guard.contains_key(&key))
+            .unwrap_or(false)
     }
 
     pub fn subscriptions_arc(&self) -> Arc<Mutex<HashMap<String, DataType>>> {
@@ -44,8 +51,10 @@ impl ZenohProvider {
     }
 
     pub fn shutdown(&self) {
-        if let Some(tx) = self.shutdown_tx.lock().unwrap().take() {
-            let _ = tx.send(());
+        if let Ok(mut guard) = self.shutdown_tx.lock()
+            && let Some(tx) = guard.take()
+        {
+            drop(tx);
         }
     }
 }

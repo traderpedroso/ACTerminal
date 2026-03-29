@@ -454,11 +454,11 @@ impl SystemMonitor {
                             })
                             .detach();
 
-                        let _ = ts_entity.update(cx, |v, cx| {
+                        ts_entity.update(cx, |v, cx| {
                             v.clear();
                             cx.notify();
                         });
-                        let _ = dom_entity.update(cx, |v, cx| {
+                        dom_entity.update(cx, |v, cx| {
                             v.clear();
                             cx.notify();
                         });
@@ -540,11 +540,11 @@ impl SystemMonitor {
                                         let price = td.price;
                                         let bid_price = td.bid_price;
                                         let ask_price = td.ask_price;
-                                        let _ = ts_entity.update(cx, |view, cx| {
+                                        ts_entity.update(cx, |view, cx| {
                                             view.push(entry);
                                             cx.notify();
                                         });
-                                        let _ = dom_entity.update(cx, |view, cx| {
+                                        dom_entity.update(cx, |view, cx| {
                                             view.update_price(price);
                                             view.update_tick_prices(bid_price, ask_price);
                                             cx.notify();
@@ -560,7 +560,7 @@ impl SystemMonitor {
                             DataType::Dom => {
                                 if let Ok(dom) = serde_json::from_str::<DomData>(&json) {
                                     eprintln!("[UI] Updating DOM with {} bids", dom.bids.len());
-                                    let _ = dom_entity.update(cx, |view, cx| {
+                                    dom_entity.update(cx, |view, cx| {
                                         view.update_dom(dom);
                                         cx.notify();
                                     });
@@ -596,7 +596,7 @@ impl SystemMonitor {
 
         self.app_cpu = 0.0;
         self.app_memory = 0;
-        for (_pid, process) in self.sys.processes() {
+        for process in self.sys.processes().values() {
             let name = process.name().to_string_lossy().to_lowercase();
             if name.contains("icetrader") {
                 self.app_cpu = process.cpu_usage() as f64;

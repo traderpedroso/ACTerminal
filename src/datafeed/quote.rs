@@ -9,7 +9,5 @@ pub fn process(json: &str) -> Option<QuoteData> {
 }
 
 pub fn to_json_string(json: &str) -> Option<String> {
-    process(json)
-        .map(|quote| serde_json::to_string_pretty(&quote).ok())
-        .flatten()
+    process(json).and_then(|quote| serde_json::to_string_pretty(&quote).ok())
 }

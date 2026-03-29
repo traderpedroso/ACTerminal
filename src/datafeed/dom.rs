@@ -9,7 +9,5 @@ pub fn process(json: &str) -> Option<DomData> {
 }
 
 pub fn to_json_string(json: &str) -> Option<String> {
-    process(json)
-        .map(|dom| serde_json::to_string_pretty(&dom).ok())
-        .flatten()
+    process(json).and_then(|dom| serde_json::to_string_pretty(&dom).ok())
 }

@@ -1,5 +1,5 @@
 use crate::datafeed::types::{Tick, TickData, TickMessage};
-use std::sync::atomic::{AtomicI8, AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicI8, Ordering};
 
 static LAST_PRICE_TICKS: AtomicI64 = AtomicI64::new(0);
 static LAST_BID_TICKS: AtomicI64 = AtomicI64::new(0);
@@ -84,14 +84,12 @@ pub fn process(json: &str) -> Option<Vec<TickData>> {
                         _ => ("MID_PRICE_TRADE", 0),
                     }
                 }
+            } else if current_ask_ticks > 0 && trade_ticks >= current_ask_ticks {
+                ("BUY_MARKET", 1)
+            } else if current_bid_ticks > 0 && trade_ticks <= current_bid_ticks {
+                ("SELL_MARKET", -1)
             } else {
-                if current_ask_ticks > 0 && trade_ticks >= current_ask_ticks {
-                    ("BUY_MARKET", 1)
-                } else if current_bid_ticks > 0 && trade_ticks <= current_bid_ticks {
-                    ("SELL_MARKET", -1)
-                } else {
-                    ("MID_PRICE_TRADE", 0)
-                }
+                ("MID_PRICE_TRADE", 0)
             };
 
             LAST_PRICE_TICKS.store(trade_ticks, Ordering::SeqCst);
@@ -124,7 +122,5 @@ pub fn process(json: &str) -> Option<Vec<TickData>> {
 }
 
 pub fn to_json_string(json: &str) -> Option<String> {
-    process(json)
-        .map(|ticks| serde_json::to_string_pretty(&ticks).ok())
-        .flatten()
+    process(json).and_then(|ticks| serde_json::to_string_pretty(&ticks).ok())
 }

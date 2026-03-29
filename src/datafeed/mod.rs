@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 pub enum DataFeedBackend {
     #[default]
     Zmq,
+    #[allow(dead_code)]
     Zenoh,
 }
 

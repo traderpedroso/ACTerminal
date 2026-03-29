@@ -22,17 +22,24 @@ impl ZmqProvider {
 
     pub fn subscribe(&self, symbol: &str, data_type: DataType) {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().insert(key, data_type);
+        if let Ok(mut guard) = self.subscriptions.lock() {
+            guard.insert(key, data_type);
+        }
     }
 
     pub fn unsubscribe(&self, symbol: &str, data_type: DataType) {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().remove(&key);
+        if let Ok(mut guard) = self.subscriptions.lock() {
+            guard.remove(&key);
+        }
     }
 
     pub fn is_subscribed(&self, symbol: &str, data_type: DataType) -> bool {
         let key = format!("{}{}", data_type.prefix(), symbol);
-        self.subscriptions.lock().unwrap().contains_key(&key)
+        self.subscriptions
+            .lock()
+            .map(|guard| guard.contains_key(&key))
+            .unwrap_or(false)
     }
 
     pub fn subscriptions_arc(&self) -> Arc<Mutex<HashMap<String, DataType>>> {
@@ -46,7 +53,9 @@ impl ZmqProvider {
         let subscriptions = self.subscriptions.clone();
         let context = self.context.clone();
 
-        *self.shutdown_tx.lock().unwrap() = Some(shutdown_tx);
+        if let Ok(mut guard) = self.shutdown_tx.lock() {
+            *guard = Some(shutdown_tx);
+        }
 
         thread::spawn(move || {
             let socket = match context.socket(zmq::SUB) {
@@ -72,7 +81,10 @@ impl ZmqProvider {
                 loop {
                     std::thread::sleep(std::time::Duration::from_millis(50));
 
-                    let subs = subscriptions_clone.lock().unwrap().clone();
+                    let subs = match subscriptions_clone.lock() {
+                        Ok(guard) => guard.clone(),
+                        Err(_) => continue,
+                    };
 
                     eprintln!(
                         "[SUB-MGR] Current ZeroMQ subs: {:?}",
@@ -91,16 +103,18 @@ impl ZmqProvider {
                     }
 
                     for key in to_remove {
-                        if current_subscriptions.remove(&key).is_some() {
-                            let socket = socket_clone.lock().unwrap();
+                        if current_subscriptions.remove(&key).is_some()
+                            && let Ok(socket) = socket_clone.lock()
+                        {
                             eprintln!("[SUB-MGR] Unsubscribing: {}", key);
                             let _ = socket.set_unsubscribe(key.as_bytes());
                         }
                     }
 
                     for (key, data_type) in &subs {
-                        if !current_subscriptions.contains_key(key) {
-                            let socket = socket_clone.lock().unwrap();
+                        if !current_subscriptions.contains_key(key)
+                            && let Ok(socket) = socket_clone.lock()
+                        {
                             eprintln!("[SUB-MGR] Subscribing: {}", key);
                             let filter = if key.is_empty() { b"" } else { key.as_bytes() };
                             if socket.set_subscribe(filter).is_ok() {
@@ -117,16 +131,21 @@ impl ZmqProvider {
                 }
 
                 let topic_result = {
-                    let socket = socket.lock().unwrap();
-                    socket.set_rcvtimeo(100).ok();
+                    let socket = match socket.lock() {
+                        Ok(s) => s,
+                        Err(_) => continue,
+                    };
+                    let _ = socket.set_rcvtimeo(100);
                     socket.recv_bytes(0)
                 };
 
                 match topic_result {
                     Ok(topic_bytes) if !topic_bytes.is_empty() => {
                         let msg_bytes = {
-                            let socket = socket.lock().unwrap();
-                            socket.recv_bytes(0).unwrap_or_default()
+                            match socket.lock() {
+                                Ok(s) => s.recv_bytes(0).unwrap_or_default(),
+                                Err(_) => continue,
+                            }
                         };
 
                         let topic_str = String::from_utf8_lossy(&topic_bytes).to_string();
@@ -171,8 +190,10 @@ impl ZmqProvider {
     }
 
     pub fn shutdown(&self) {
-        if let Some(tx) = self.shutdown_tx.lock().unwrap().take() {
-            let _ = tx.send(());
+        if let Ok(mut guard) = self.shutdown_tx.lock()
+            && let Some(tx) = guard.take()
+        {
+            drop(tx);
         }
     }
 }
