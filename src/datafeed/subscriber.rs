@@ -1,0 +1,192 @@
+use crate::datafeed::{DataType, dom_to_json, quote_to_json, tick_to_json};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use tokio::sync::mpsc;
+use zmq::Context;
+
+#[derive(Clone)]
+pub struct DataFeedSubscriber {
+    context: Arc<Context>,
+    subscriptions: Arc<Mutex<HashMap<String, DataType>>>,
+    shutdown_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+}
+
+impl DataFeedSubscriber {
+    pub fn new() -> Self {
+        Self {
+            context: Arc::new(Context::new()),
+            subscriptions: Arc::new(Mutex::new(HashMap::new())),
+            shutdown_tx: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub fn subscribe(&self, symbol: &str, data_type: DataType) {
+        let key = format!("{}{}", data_type.prefix(), symbol);
+        self.subscriptions.lock().unwrap().insert(key, data_type);
+    }
+
+    pub fn unsubscribe(&self, symbol: &str, data_type: DataType) {
+        let key = format!("{}{}", data_type.prefix(), symbol);
+        self.subscriptions.lock().unwrap().remove(&key);
+    }
+
+    pub fn is_subscribed(&self, symbol: &str, data_type: DataType) -> bool {
+        let key = format!("{}{}", data_type.prefix(), symbol);
+        self.subscriptions.lock().unwrap().contains_key(&key)
+    }
+
+    pub fn subscriptions_arc(&self) -> Arc<Mutex<HashMap<String, DataType>>> {
+        self.subscriptions.clone()
+    }
+
+    pub fn start(&self) -> mpsc::Receiver<(String, DataType, String)> {
+        let (tx, rx) = mpsc::channel(100);
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+
+        let subscriptions = self.subscriptions.clone();
+        let context = self.context.clone();
+
+        *self.shutdown_tx.lock().unwrap() = Some(shutdown_tx);
+
+        // Single thread that handles both subscription management and message receiving
+        thread::spawn(move || {
+            let socket = match context.socket(zmq::SUB) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("[SUB] Failed to create socket: {}", e);
+                    return;
+                }
+            };
+
+            if let Err(e) = socket.connect("tcp://127.0.0.1:5555") {
+                eprintln!("[SUB] Failed to connect: {}", e);
+                return;
+            }
+
+            let socket = Arc::new(Mutex::new(socket));
+            let socket_clone = socket.clone();
+            let subscriptions_clone = subscriptions.clone();
+
+            // Thread for managing subscriptions
+            thread::spawn(move || {
+                let mut current_subscriptions: HashMap<String, DataType> = HashMap::new();
+
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+
+                    let subs = subscriptions_clone.lock().unwrap().clone();
+
+                    eprintln!(
+                        "[SUB-MGR] Current ZeroMQ subs: {:?}",
+                        current_subscriptions.keys().collect::<Vec<_>>()
+                    );
+                    eprintln!(
+                        "[SUB-MGR] Target subs: {:?}",
+                        subs.keys().collect::<Vec<_>>()
+                    );
+
+                    let mut to_remove: Vec<String> = Vec::new();
+                    for key in current_subscriptions.keys() {
+                        if !subs.contains_key(key) {
+                            to_remove.push(key.clone());
+                        }
+                    }
+
+                    for key in to_remove {
+                        if current_subscriptions.remove(&key).is_some() {
+                            let socket = socket_clone.lock().unwrap();
+                            eprintln!("[SUB-MGR] Unsubscribing: {}", key);
+                            let _ = socket.set_unsubscribe(key.as_bytes());
+                        }
+                    }
+
+                    for (key, data_type) in &subs {
+                        if !current_subscriptions.contains_key(key) {
+                            let socket = socket_clone.lock().unwrap();
+                            eprintln!("[SUB-MGR] Subscribing: {}", key);
+                            let filter = if key.is_empty() { b"" } else { key.as_bytes() };
+                            if socket.set_subscribe(filter).is_ok() {
+                                current_subscriptions.insert(key.clone(), *data_type);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Use blocking recv like the working test code
+            loop {
+                // Check for shutdown
+                if shutdown_rx.try_recv().is_ok() {
+                    break;
+                }
+
+                // Try to receive with timeout - like the working test code
+                let topic_result = {
+                    let socket = socket.lock().unwrap();
+                    socket.set_rcvtimeo(100).ok();
+                    socket.recv_bytes(0)
+                };
+
+                match topic_result {
+                    Ok(topic_bytes) if !topic_bytes.is_empty() => {
+                        let msg_bytes = {
+                            let socket = socket.lock().unwrap();
+                            socket.recv_bytes(0).unwrap_or_default()
+                        };
+
+                        let topic_str = String::from_utf8_lossy(&topic_bytes).to_string();
+                        let msg = String::from_utf8_lossy(&msg_bytes).to_string();
+
+                        let data_type = if topic_str.starts_with("tick.") {
+                            DataType::Tick
+                        } else if topic_str.starts_with("dom.") {
+                            DataType::Dom
+                        } else if topic_str.starts_with("quote.") {
+                            DataType::Quote
+                        } else {
+                            eprintln!("[SUB] Unknown topic: {}", topic_str);
+                            continue;
+                        };
+
+                        let result = match data_type {
+                            DataType::Tick => tick_to_json(&msg),
+                            DataType::Dom => dom_to_json(&msg),
+                            DataType::Quote => quote_to_json(&msg),
+                        };
+
+                        if let Some(formatted) = result {
+                            let symbol = topic_str
+                                .trim_start_matches("tick.")
+                                .trim_start_matches("dom.")
+                                .trim_start_matches("quote.")
+                                .to_string();
+
+                            eprintln!("[SUB] Sending to UI: {} - {}", symbol, data_type.prefix());
+                            let _ = tx.blocking_send((symbol, data_type, formatted));
+                        } else {
+                            eprintln!("[SUB] Processing failed for topic: {}", topic_str);
+                        }
+                    }
+                    _ => {
+                        // Timeout or error - continue loop
+                    }
+                }
+            }
+        });
+
+        rx
+    }
+
+    pub fn shutdown(&self) {
+        if let Some(tx) = self.shutdown_tx.lock().unwrap().take() {
+            let _ = tx.send(());
+        }
+    }
+}
+
+impl Default for DataFeedSubscriber {
+    fn default() -> Self {
+        Self::new()
+    }
+}
