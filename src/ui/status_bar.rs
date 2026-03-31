@@ -1,26 +1,7 @@
-use gpui::prelude::FluentBuilder as _;
 use gpui::*;
 use gpui_component::{h_flex, progress::Progress, ActiveTheme, Icon, IconName};
 
-/// Disk information snapshot used by the status bar.
-#[derive(Clone, Default)]
-pub struct DiskInfo {
-    pub total: u64,
-    pub used: u64,
-}
-
-/// Battery information snapshot used by the status bar.
-#[derive(Clone)]
-pub struct BatteryInfo {
-    pub icon: IconName,
-    pub percentage: f32,
-}
-
-/// Data needed to render the status bar. Callers fill this from their own
-/// system-info state and pass it to `render_status_bar`.
-pub struct StatusBarData<'a> {
-    pub disk_info: &'a [DiskInfo],
-    pub battery_info: &'a [BatteryInfo],
+pub struct StatusBarData {
     /// App-process CPU usage in percent (0.0–100.0).
     pub app_cpu: f64,
     /// App-process memory in bytes.
@@ -29,9 +10,7 @@ pub struct StatusBarData<'a> {
 
 /// Render the bottom status bar.  This is intentionally a free function so
 /// every tab can call it without duplicating logic.
-pub fn render_status_bar<T: 'static>(data: StatusBarData<'_>, cx: &Context<T>) -> impl IntoElement {
-    let primary_battery = data.battery_info.first();
-
+pub fn render_status_bar<T: 'static>(data: StatusBarData, cx: &Context<T>) -> impl IntoElement {
     h_flex()
         .px_3()
         .gap_4()
@@ -79,18 +58,4 @@ pub fn render_status_bar<T: 'static>(data: StatusBarData<'_>, cx: &Context<T>) -
                         .child(format!("{:.1}%", cpu_percent))
                 })
         })
-        .child(div().when_some(primary_battery, |this, battery| {
-            this.child(
-                h_flex()
-                    .gap_2()
-                    .items_center()
-                    .child(Icon::new(battery.icon.clone()))
-                    .child(format!("{:.0}%", battery.percentage)),
-            )
-        }))
-}
-
-/// Helper: convert raw bytes (total/used) from sysinfo disks into `DiskInfo`.
-pub fn disk_info_from(total: u64, used: u64) -> DiskInfo {
-    DiskInfo { total, used }
 }

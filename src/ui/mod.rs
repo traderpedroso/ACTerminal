@@ -10,5 +10,5 @@ pub use dom_view::DomView;
 pub use dto::{UiDomData, UiQuoteData, UiTickData};
 pub use process_table::ProcessTableDelegate;
 pub use quotes_view::QuotesView;
-pub use status_bar::{disk_info_from, render_status_bar, BatteryInfo, DiskInfo, StatusBarData};
+pub use status_bar::{render_status_bar, StatusBarData};
 pub use times_and_sales::{TimesAndSalesEntry, TimesAndSalesView};

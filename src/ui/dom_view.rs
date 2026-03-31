@@ -14,10 +14,6 @@ const TICK_SIZE: f64 = 0.00005;
 /// Minimum levels to show on each side (bid/ask)
 const MIN_LEVELS_PER_SIDE: usize = 5;
 
-/// Row height bounds (pixels). Dynamic height is clamped to this range.
-const ROW_H_MIN: f32 = 16.0;
-const ROW_H_MAX: f32 = 32.0;
-
 /// Estimated height of UI chrome above/below the DOM body:
 ///   macOS title bar ~30 + tab bar ~32 + DOM header ~26 + DOM footer ~26
 const CHROME_H: f32 = 114.0;

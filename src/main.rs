@@ -7,7 +7,7 @@ mod ui;
 
 use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData};
 use ui::{
-    BatteryInfo, DiskInfo, DomView, ProcessTableDelegate, QuotesView, StatusBarData,
+    DomView, ProcessTableDelegate, QuotesView, StatusBarData,
     TimesAndSalesEntry, TimesAndSalesView, UiDomData, UiQuoteData, UiTickData, render_status_bar,
 };
 
@@ -17,7 +17,7 @@ use gpui::{actions, prelude::FluentBuilder as _, *};
 use gpui_component::ThemeMode;
 use gpui_component::select::{Select, SelectEvent, SelectState};
 use gpui_component::{
-    ActiveTheme, IconName, Root, Sizable, Theme, TitleBar,
+    ActiveTheme, Root, Sizable, Theme, TitleBar,
     chart::AreaChart,
     h_flex,
     tab::{Tab, TabBar},
@@ -25,7 +25,7 @@ use gpui_component::{
     v_flex,
 };
 use smol::Timer;
-use sysinfo::{Disks, ProcessRefreshKind, RefreshKind, System};
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tokio::sync::mpsc;
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -78,11 +78,8 @@ struct MetricPoint {
 pub struct SystemMonitor {
     // ── System info ──────────────────────────────────────────────────────────
     sys: System,
-    disks: Disks,
     data: VecDeque<MetricPoint>,
     time_index: usize,
-    disk_info: Vec<DiskInfo>,
-    battery_info: Vec<BatteryInfo>,
     app_cpu: f64,
     app_memory: u64,
 
@@ -108,7 +105,6 @@ impl SystemMonitor {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut sys = System::new_all();
         sys.refresh_all();
-        let disks = Disks::new_with_refreshed_list();
 
         let process_delegate = ProcessTableDelegate::new();
         let process_table = cx.new(|cx| {
@@ -208,11 +204,8 @@ impl SystemMonitor {
 
         let mut monitor = Self {
             sys,
-            disks,
             data: VecDeque::with_capacity(MAX_DATA_POINTS),
             time_index: 0,
-            disk_info: Vec::new(),
-            battery_info: Vec::new(),
             app_cpu: 0.0,
             app_memory: 0,
             active_tab: MonitorTab::OrderFlow,
@@ -385,7 +378,6 @@ impl SystemMonitor {
         self.sys.refresh_specifics(
             RefreshKind::everything().with_processes(ProcessRefreshKind::everything()),
         );
-        self.disks.refresh(true);
 
         self.app_cpu = 0.0;
         self.app_memory = 0;
@@ -423,40 +415,6 @@ impl SystemMonitor {
             table.delegate_mut().update_processes(&self.sys);
             cx.notify();
         });
-
-        self.disk_info = self
-            .disks
-            .iter()
-            .map(|disk| {
-                crate::ui::disk_info_from(
-                    disk.total_space(),
-                    disk.total_space() - disk.available_space(),
-                )
-            })
-            .collect();
-
-        self.update_battery_info();
-    }
-
-    fn update_battery_info(&mut self) {
-        self.battery_info.clear();
-        if let Ok(manager) = battery::Manager::new()
-            && let Ok(batteries) = manager.batteries()
-        {
-            for battery in batteries.flatten() {
-                let icon = match battery.state() {
-                    battery::State::Charging => IconName::BatteryCharging,
-                    battery::State::Discharging => IconName::BatteryMedium,
-                    battery::State::Full => IconName::BatteryFull,
-                    battery::State::Empty => IconName::Battery,
-                    _ => IconName::Battery,
-                };
-                self.battery_info.push(BatteryInfo {
-                    icon,
-                    percentage: battery.state_of_charge().value * 100.0,
-                });
-            }
-        }
     }
 
     fn set_active_tab(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
@@ -469,8 +427,6 @@ impl SystemMonitor {
     fn render_status_bar_view(&self, cx: &Context<Self>) -> impl IntoElement {
         render_status_bar(
             StatusBarData {
-                disk_info: &self.disk_info,
-                battery_info: &self.battery_info,
                 app_cpu: self.app_cpu,
                 app_memory: self.app_memory,
             },
