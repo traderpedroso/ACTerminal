@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
 
 use gpui::{linear_color_stop, linear_gradient, *};
-use gpui_component::{ActiveTheme, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex, ActiveTheme};
 
-use crate::ui::theme::TradeSide;
+use crate::datafeed::TradeSide;
+use crate::ui::dto::UiTickData;
 
 /// Maximum number of rows kept in memory.
 const MAX_ROWS: usize = 500;
@@ -28,31 +29,14 @@ pub struct TimesAndSalesEntry {
 }
 
 impl TimesAndSalesEntry {
-    /// Build from a parsed `TickData` + the subscription symbol.
-    pub fn from_tick_data(td: &crate::datafeed::TickData, symbol: &str) -> Self {
-        let side = TradeSide::from_str(&td.side);
-
-        // td.time pode ser Unix timestamp em ms ou outro formato
-        // Vamos mostrar apenas os últimos digitos como milliseconds
-        let time_ms = td.time;
-
-        // Se parece um timestamp Unix (grande), converter
-        let secs = if time_ms > 1_000_000_000 {
-            time_ms / 1000
-        } else {
-            time_ms
-        };
-
-        let h = (secs / 3600) % 24;
-        let m = (secs / 60) % 60;
-        let s = secs % 60;
-
-        TimesAndSalesEntry {
-            time: format!("{:02}:{:02}:{:02}", h, m, s),
+    /// Build from a parsed `UiTickData` + the subscription symbol.
+    pub fn from_ui_tick_data(td: &UiTickData) -> Self {
+        Self {
+            time: td.time.clone(),
             price: td.price,
             size: td.size,
-            side,
-            symbol: symbol.to_string(),
+            side: td.side,
+            symbol: td.symbol.clone(),
         }
     }
 }

@@ -10,10 +10,27 @@ pub enum DataType {
 impl DataType {
     pub fn prefix(&self) -> &'static str {
         match self {
-            DataType::Tick => "tick.",
-            DataType::Dom => "dom.",
-            DataType::Quote => "quote.",
+            DataType::Tick => "ticks.",
+            DataType::Dom => "doms.",
+            DataType::Quote => "quotes.",
         }
+    }
+}
+
+fn deserialize_trade_date<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum TradeDateOrString {
+        Number(i64),
+        String(String),
+    }
+    let td = TradeDateOrString::deserialize(deserializer)?;
+    match td {
+        TradeDateOrString::Number(n) => Ok(n),
+        TradeDateOrString::String(s) => s.parse().map_err(serde::de::Error::custom),
     }
 }
 
@@ -22,8 +39,8 @@ pub struct TickPacket {
     pub id: i64,
     #[serde(rename = "s")]
     pub source: String,
-    #[serde(rename = "td")]
-    pub trade_date: String,
+    #[serde(rename = "td", deserialize_with = "deserialize_trade_date")]
+    pub trade_date: i64,
     #[serde(rename = "bp")]
     pub base_price: i64,
     #[serde(rename = "bt")]
@@ -57,6 +74,7 @@ pub struct Tick {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct TickMessage {
     #[serde(rename = "ticks")]
     pub ticks: Vec<TickPacket>,
@@ -117,7 +135,9 @@ pub struct DomData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuoteEntry {
+    #[serde(default)]
     pub price: f64,
+    #[serde(default)]
     pub size: f64,
 }
 
@@ -145,8 +165,9 @@ pub struct QuoteEntries {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuoteData {
+    #[serde(default)]
     pub timestamp: String,
-    #[serde(rename = "contractId")]
+    #[serde(rename = "contractId", default)]
     pub contract_id: i64,
     pub entries: QuoteEntries,
 }
@@ -165,7 +186,6 @@ pub enum MarketData {
     Quote(QuoteData),
 }
 
-#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Subscription {
     pub symbol: String,

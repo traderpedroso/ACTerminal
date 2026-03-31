@@ -2,14 +2,14 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{canvas, div, px, rgb, Bounds, MouseButton, Pixels, ScrollDelta};
+use gpui::{Bounds, MouseButton, Pixels, ScrollDelta, canvas, div, px, rgb};
 use gpui_component::v_flex;
 
 use gpui_component::ActiveTheme;
 
 use super::orderbook_chart::{ChartDataPoint, TradeSide};
-use crate::datafeed::types::QuoteData;
 use crate::datafeed::TickData;
+use crate::datafeed::types::QuoteData;
 
 const CHART_HEIGHT: f32 = 400.0;
 const PRICE_AXIS_WIDTH: f32 = 70.0;

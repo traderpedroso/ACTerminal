@@ -7,8 +7,8 @@ mod ui;
 
 use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData};
 use ui::{
-    BatteryInfo, DiskInfo, DomView, StatusBarData, TimesAndSalesEntry, TimesAndSalesView,
-    render_status_bar,
+    BatteryInfo, DiskInfo, DomView, ProcessTableDelegate, StatusBarData,
+    TimesAndSalesEntry, TimesAndSalesView, UiDomData, UiTickData, render_status_bar,
 };
 
 use std::time::Duration;
@@ -21,11 +21,11 @@ use gpui_component::{
     chart::AreaChart,
     h_flex,
     tab::{Tab, TabBar},
-    table::{Column, ColumnSort, DataTable, TableDelegate, TableState},
+    table::{DataTable, TableState},
     v_flex,
 };
 use smol::Timer;
-use sysinfo::{Disks, Pid, ProcessRefreshKind, RefreshKind, System};
+use sysinfo::{Disks, ProcessRefreshKind, RefreshKind, System};
 use tokio::sync::mpsc;
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -71,176 +71,6 @@ struct MetricPoint {
     memory: f64,
 }
 
-#[derive(Clone)]
-struct ProcessInfo {
-    pid: Pid,
-    name: String,
-    cpu_usage: f32,
-    memory: u64,
-}
-
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
-enum ProcessSortField {
-    Pid,
-    Name,
-    #[default]
-    Cpu,
-    Memory,
-}
-
-struct ProcessTableDelegate {
-    processes: Vec<ProcessInfo>,
-    columns: Vec<Column>,
-    sort_field: ProcessSortField,
-    sort_order: ColumnSort,
-}
-
-impl ProcessTableDelegate {
-    fn new() -> Self {
-        Self {
-            processes: Vec::new(),
-            columns: vec![
-                Column::new("pid", "PID").width(70.).sortable(),
-                Column::new("name", "Name").width(380.).sortable(),
-                Column::new("cpu", "CPU %")
-                    .width(80.)
-                    .sortable()
-                    .sort(ColumnSort::Descending),
-                Column::new("memory", "Memory").width(100.).sortable(),
-            ],
-            sort_field: ProcessSortField::Cpu,
-            sort_order: ColumnSort::Descending,
-        }
-    }
-
-    fn update_processes(&mut self, sys: &System) {
-        self.processes = sys
-            .processes()
-            .iter()
-            .map(|(pid, process)| ProcessInfo {
-                pid: *pid,
-                name: process.name().to_string_lossy().to_string(),
-                cpu_usage: process.cpu_usage(),
-                memory: process.memory(),
-            })
-            .collect();
-        self.sort_processes();
-    }
-
-    fn sort_processes(&mut self) {
-        let is_desc = matches!(self.sort_order, ColumnSort::Descending);
-        match self.sort_field {
-            ProcessSortField::Pid => self.processes.sort_by(|a, b| {
-                let c = a.pid.as_u32().cmp(&b.pid.as_u32());
-                if is_desc { c.reverse() } else { c }
-            }),
-            ProcessSortField::Name => self.processes.sort_by(|a, b| {
-                let c = a.name.to_lowercase().cmp(&b.name.to_lowercase());
-                if is_desc { c.reverse() } else { c }
-            }),
-            ProcessSortField::Cpu => self.processes.sort_by(|a, b| {
-                let c = a
-                    .cpu_usage
-                    .partial_cmp(&b.cpu_usage)
-                    .unwrap_or(std::cmp::Ordering::Equal);
-                if is_desc { c.reverse() } else { c }
-            }),
-            ProcessSortField::Memory => self.processes.sort_by(|a, b| {
-                let c = a.memory.cmp(&b.memory);
-                if is_desc { c.reverse() } else { c }
-            }),
-        }
-        self.processes.truncate(200);
-    }
-}
-
-impl TableDelegate for ProcessTableDelegate {
-    fn columns_count(&self, _cx: &App) -> usize {
-        self.columns.len()
-    }
-    fn rows_count(&self, _cx: &App) -> usize {
-        self.processes.len()
-    }
-    fn column(&self, col_ix: usize, _cx: &App) -> Column {
-        self.columns[col_ix].clone()
-    }
-
-    fn render_td(
-        &mut self,
-        row_ix: usize,
-        col_ix: usize,
-        _window: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let Some(process) = self.processes.get(row_ix) else {
-            return div().into_any_element();
-        };
-        match col_ix {
-            0 => div()
-                .text_xs()
-                .text_color(cx.theme().muted_foreground)
-                .child(format!("{}", process.pid))
-                .into_any_element(),
-            1 => div()
-                .text_sm()
-                .text_color(cx.theme().foreground)
-                .truncate()
-                .child(process.name.clone())
-                .into_any_element(),
-            2 => div()
-                .text_xs()
-                .text_color(if process.cpu_usage > 50.0 {
-                    cx.theme().red
-                } else if process.cpu_usage > 20.0 {
-                    cx.theme().yellow
-                } else {
-                    cx.theme().blue
-                })
-                .child(format!("{:.1}%", process.cpu_usage))
-                .into_any_element(),
-            3 => div()
-                .text_xs()
-                .text_color(cx.theme().blue)
-                .child(format_bytes(process.memory))
-                .into_any_element(),
-            _ => div().into_any_element(),
-        }
-    }
-
-    fn perform_sort(
-        &mut self,
-        col_ix: usize,
-        sort: ColumnSort,
-        _window: &mut Window,
-        _cx: &mut Context<TableState<Self>>,
-    ) {
-        self.sort_order = sort;
-        self.sort_field = match col_ix {
-            0 => ProcessSortField::Pid,
-            1 => ProcessSortField::Name,
-            2 => ProcessSortField::Cpu,
-            3 => ProcessSortField::Memory,
-            _ => ProcessSortField::Cpu,
-        };
-        self.sort_processes();
-    }
-}
-
-fn format_bytes(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-    if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
 // SystemMonitor — the root GPUI entity
 // ──────────────────────────────────────────────────────────────────────────────
@@ -269,6 +99,7 @@ pub struct SystemMonitor {
     symbol_select: Entity<SelectState<Vec<SharedString>>>,
     current_symbol: Arc<RwLock<String>>,
     subscriber: Arc<dyn DataFeedProvider>,
+    #[allow(dead_code)]
     symbol_manager: Arc<SymbolManager>,
 }
 
@@ -322,25 +153,14 @@ impl SystemMonitor {
                 let subscriber = subscriber.clone();
                 async move {
                     while let Some(event) = change_rx.recv().await {
-                        eprintln!(
-                            "[SYMBOL] Received event: {:?} -> {:?}",
-                            event.old_symbol, event.new_symbol
-                        );
-
                         // Unsubscribe old symbol
                         if let Some(old) = event.old_symbol {
-                            eprintln!("[SYMBOL] Unsubscribing from {}", old);
                             for dt in &event.data_types {
                                 let mapped_dt = match dt {
                                     datafeed::symbols::SymbolDataType::Tick => DataType::Tick,
                                     datafeed::symbols::SymbolDataType::Dom => DataType::Dom,
                                     datafeed::symbols::SymbolDataType::Quote => DataType::Quote,
                                 };
-                                eprintln!(
-                                    "[SYMBOL]   - unsubscribing {} for {}",
-                                    mapped_dt.prefix(),
-                                    old
-                                );
                                 if subscriber.is_subscribed(&old, mapped_dt) {
                                     subscriber.unsubscribe(&old, mapped_dt);
                                 }
@@ -348,32 +168,17 @@ impl SystemMonitor {
                         }
                         // Subscribe new symbol
                         if let Some(new) = event.new_symbol {
-                            eprintln!("[SYMBOL] Subscribing to {}", new);
                             for dt in &event.data_types {
-                                let _prefix = dt.prefix(); // use unused method
                                 let mapped_dt = match dt {
                                     datafeed::symbols::SymbolDataType::Tick => DataType::Tick,
                                     datafeed::symbols::SymbolDataType::Dom => DataType::Dom,
                                     datafeed::symbols::SymbolDataType::Quote => DataType::Quote,
                                 };
-                                let _subscription = datafeed::types::Subscription {
-                                    symbol: new.clone(),
-                                    data_type: mapped_dt,
-                                }; // use unused struct
-
-                                eprintln!(
-                                    "[SYMBOL]   - subscribing {} for {}",
-                                    mapped_dt.prefix(),
-                                    new
-                                );
                                 if !subscriber.is_subscribed(&new, mapped_dt) {
                                     subscriber.subscribe(&new, mapped_dt);
                                 }
                             }
-                            datafeed::tick::reset_state(); // use unused function
                         }
-                        // access unused method for warnings
-                        let _arc1 = subscriber.subscriptions_arc();
                     }
                 }
             })
@@ -385,7 +190,7 @@ impl SystemMonitor {
                 let symbol_manager = symbol_manager.clone();
                 let initial = initial_symbol.to_string();
                 async move {
-                    symbol_manager
+                    let _ = symbol_manager
                         .set_symbol(
                             &initial,
                             vec![
@@ -435,13 +240,7 @@ impl SystemMonitor {
                         let symbol_manager = symbol_manager.clone();
                         cx.background_executor()
                             .spawn(async move {
-                                // use unused methods from SymbolManager to satisfy warnings
-                                let _current = symbol_manager.get_current_symbol().await;
-                                let _subscriptions = symbol_manager.get_subscriptions().await;
-                                let _arc1 = symbol_manager.subscriptions_arc();
-                                let _arc2 = symbol_manager.current_symbol_arc();
-
-                                symbol_manager
+                                let _ = symbol_manager
                                     .set_symbol(
                                         &new_sym_str,
                                         vec![
@@ -512,31 +311,17 @@ impl SystemMonitor {
                         // Read the current symbol from the shared Arc
                         let current = current_symbol.read().await;
 
-                        // Debug: show all messages
-                        eprintln!(
-                            "[UI] Got {} for symbol '{}' (current: '{}')",
-                            data_type.prefix(),
-                            symbol,
-                            current
-                        );
-
                         // Only process messages for current symbol
                         if symbol != *current {
-                            eprintln!("[UI] Skipping - symbol mismatch");
                             continue;
                         }
 
                         match data_type {
                             DataType::Tick => {
-                                eprintln!(
-                                    "[UI] Got tick for symbol '{}' (current: '{}')",
-                                    symbol, current
-                                );
                                 if let Ok(ticks) = serde_json::from_str::<Vec<TickData>>(&json) {
-                                    eprintln!("[UI] Parsed {} ticks, updating UI...", ticks.len());
                                     for td in ticks {
-                                        let entry =
-                                            TimesAndSalesEntry::from_tick_data(&td, &symbol);
+                                        let ui_tick = UiTickData::from_tick_data(&td, &symbol);
+                                        let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
                                         let price = td.price;
                                         let bid_price = td.bid_price;
                                         let ask_price = td.ask_price;
@@ -550,25 +335,19 @@ impl SystemMonitor {
                                             cx.notify();
                                         });
                                     }
-                                } else {
-                                    eprintln!(
-                                        "[UI] Failed to parse ticks: {}",
-                                        &json[..json.len().min(100)]
-                                    );
                                 }
                             }
                             DataType::Dom => {
                                 if let Ok(dom) = serde_json::from_str::<DomData>(&json) {
-                                    eprintln!("[UI] Updating DOM with {} bids", dom.bids.len());
+                                    let ui_dom = UiDomData::from(dom);
                                     dom_entity.update(cx, |view, cx| {
-                                        view.update_dom(dom);
+                                        view.update_dom(ui_dom);
                                         cx.notify();
                                     });
                                 }
                             }
                             DataType::Quote => {
                                 if let Ok(_quote) = serde_json::from_str::<QuoteData>(&json) {
-                                    // Quote updates can be used for additional display later
                                 }
                             }
                         }
@@ -886,28 +665,6 @@ impl Render for SystemMonitor {
 impl Drop for SystemMonitor {
     fn drop(&mut self) {
         self.subscriber.shutdown();
-        let _ = self.symbol_manager.subscriptions_arc();
-
-        // Satisfy the unused warnings for the strictly required types
-        let _md = datafeed::types::MarketData::Tick(TickData {
-            id: 0,
-            time: 0,
-            price_ticks: 0,
-            price: 0.0,
-            size: 0,
-            side: String::new(),
-            bid_price: 0.0,
-            bid_size: 0.0,
-            ask_price: 0.0,
-            ask_size: 0.0,
-        });
-
-        let sub = datafeed::types::Subscription {
-            symbol: self.current_symbol.blocking_read().clone(),
-            data_type: DataType::Tick,
-        };
-        let _ = sub.symbol;
-        let _ = sub.data_type;
     }
 }
 

@@ -2,7 +2,7 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::*;
 use gpui_component::{h_flex, v_flex, ActiveTheme};
 
-use crate::datafeed::DomData;
+use crate::ui::dto::UiDomData;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -29,7 +29,7 @@ const CHROME_H: f32 = 114.0;
 // ──────────────────────────────────────────────────────────────────────────────
 
 pub struct DomView {
-    pub data: Option<DomData>,
+    pub data: Option<UiDomData>,
     pub current_price: Option<f64>,
     pub tick_bid_price: Option<f64>,
     pub tick_ask_price: Option<f64>,
@@ -52,7 +52,7 @@ impl DomView {
         self.tick_ask_price = None;
     }
 
-    pub fn update_dom(&mut self, data: DomData) {
+    pub fn update_dom(&mut self, data: UiDomData) {
         self.data = Some(data);
     }
 
@@ -93,7 +93,7 @@ impl DomView {
 
     // ── Ladder builder ────────────────────────────────────────────────────────
 
-    fn build_ladder(dom: &DomData) -> Vec<(String, f64, f64, i64)> {
+    fn build_ladder(dom: &UiDomData) -> Vec<(String, f64, f64, i64)> {
         use std::collections::BTreeMap;
 
         let to_tick = |p: f64| -> i64 { (p / TICK_SIZE).round() as i64 };
@@ -186,8 +186,16 @@ impl Render for DomView {
         }
 
         // ── Volume scale ──────────────────────────────────────────────────────
-        let bid_max = ladder.iter().map(|(_, b, _, _)| *b).fold(0.0f64, f64::max).max(1.0);
-        let ask_max = ladder.iter().map(|(_, _, a, _)| *a).fold(0.0f64, f64::max).max(1.0);
+        let bid_max = ladder
+            .iter()
+            .map(|(_, b, _, _)| *b)
+            .fold(0.0f64, f64::max)
+            .max(1.0);
+        let ask_max = ladder
+            .iter()
+            .map(|(_, _, a, _)| *a)
+            .fold(0.0f64, f64::max)
+            .max(1.0);
         let max_vol = bid_max.max(ask_max);
 
         // ── Totals ────────────────────────────────────────────────────────────
@@ -200,10 +208,30 @@ impl Render for DomView {
         let best_ask_tick = best_ask.map(to_tick);
 
         // ── Theme colours ─────────────────────────────────────────────────────
-        let bid_label = Hsla { h: 215.0 / 360.0, s: 0.70, l: 0.72, a: 1.0 };
-        let ask_label = Hsla { h: 4.0 / 360.0, s: 0.75, l: 0.65, a: 1.0 };
-        let grid = Hsla { h: 0.0, s: 0.0, l: 1.0, a: 0.05 };
-        let bracket_col = Hsla { h: 50.0 / 360.0, s: 0.95, l: 0.68, a: 1.0 };
+        let bid_label = Hsla {
+            h: 215.0 / 360.0,
+            s: 0.70,
+            l: 0.72,
+            a: 1.0,
+        };
+        let ask_label = Hsla {
+            h: 4.0 / 360.0,
+            s: 0.75,
+            l: 0.65,
+            a: 1.0,
+        };
+        let grid = Hsla {
+            h: 0.0,
+            s: 0.0,
+            l: 1.0,
+            a: 0.05,
+        };
+        let bracket_col = Hsla {
+            h: 50.0 / 360.0,
+            s: 0.95,
+            l: 0.68,
+            a: 1.0,
+        };
 
         v_flex()
             .size_full()
@@ -261,17 +289,35 @@ impl Render for DomView {
                             .children(ladder.iter().map(
                                 |(price_str, bid_size, ask_size, row_tick)| {
                                     let row_tick = *row_tick;
-                                    let is_best_bid = best_bid_tick.map(|t| t == row_tick).unwrap_or(false);
-                                    let is_best_ask = best_ask_tick.map(|t| t == row_tick).unwrap_or(false);
-                                    let is_at_price = current_tick.map(|t| t == row_tick).unwrap_or(false);
+                                    let is_best_bid =
+                                        best_bid_tick.map(|t| t == row_tick).unwrap_or(false);
+                                    let is_best_ask =
+                                        best_ask_tick.map(|t| t == row_tick).unwrap_or(false);
+                                    let is_at_price =
+                                        current_tick.map(|t| t == row_tick).unwrap_or(false);
 
                                     let price_color: Hsla = if is_best_bid {
-                                        Hsla { h: 185.0 / 360.0, s: 0.85, l: 0.65, a: 1.0 }
+                                        Hsla {
+                                            h: 185.0 / 360.0,
+                                            s: 0.85,
+                                            l: 0.65,
+                                            a: 1.0,
+                                        }
                                     } else if is_best_ask {
-                                        Hsla { h: 28.0 / 360.0, s: 0.90, l: 0.62, a: 1.0 }
+                                        Hsla {
+                                            h: 28.0 / 360.0,
+                                            s: 0.90,
+                                            l: 0.62,
+                                            a: 1.0,
+                                        }
                                     } else {
                                         let has_data = *bid_size > 0.0 || *ask_size > 0.0;
-                                        Hsla { h: 0.0, s: 0.0, l: 1.0, a: if has_data { 0.90 } else { 0.35 } }
+                                        Hsla {
+                                            h: 0.0,
+                                            s: 0.0,
+                                            l: 1.0,
+                                            a: if has_data { 0.90 } else { 0.35 },
+                                        }
                                     };
 
                                     let bid_ratio = *bid_size / max_vol;
@@ -283,16 +329,26 @@ impl Render for DomView {
                                     let right_br = if is_at_price { "]" } else { " " };
 
                                     let row_bg: Option<Hsla> = if is_best_bid {
-                                        Some(Hsla { h: 215.0 / 360.0, s: 0.60, l: 0.20, a: 0.40 })
+                                        Some(Hsla {
+                                            h: 215.0 / 360.0,
+                                            s: 0.60,
+                                            l: 0.20,
+                                            a: 0.40,
+                                        })
                                     } else if is_best_ask {
-                                        Some(Hsla { h: 4.0 / 360.0, s: 0.60, l: 0.18, a: 0.40 })
+                                        Some(Hsla {
+                                            h: 4.0 / 360.0,
+                                            s: 0.60,
+                                            l: 0.18,
+                                            a: 0.40,
+                                        })
                                     } else {
                                         None
                                     };
 
                                     h_flex()
                                         .w_full()
-                                        .h(px(row_h))       // ← DYNAMIC: scales with viewport
+                                        .h(px(row_h)) // ← DYNAMIC: scales with viewport
                                         .justify_center()
                                         .items_center()
                                         .border_b_1()
@@ -324,8 +380,21 @@ impl Render for DomView {
                                                         .pr(px(3.))
                                                         .text_sm()
                                                         .font_weight(FontWeight::SEMIBOLD)
-                                                        .text_color(if *bid_size > 0.0 { gpui::white() } else { Hsla { h: 0.0, s: 0.0, l: 0.0, a: 0.0 } })
-                                                        .child(if *bid_size > 0.0 { format!("{}", *bid_size as u64) } else { String::new() }),
+                                                        .text_color(if *bid_size > 0.0 {
+                                                            gpui::white()
+                                                        } else {
+                                                            Hsla {
+                                                                h: 0.0,
+                                                                s: 0.0,
+                                                                l: 0.0,
+                                                                a: 0.0,
+                                                            }
+                                                        })
+                                                        .child(if *bid_size > 0.0 {
+                                                            format!("{}", *bid_size as u64)
+                                                        } else {
+                                                            String::new()
+                                                        }),
                                                 ),
                                         )
                                         // ── Price cell ────────────────────────
@@ -337,10 +406,34 @@ impl Render for DomView {
                                                 .items_center()
                                                 .justify_center()
                                                 .text_sm()
-                                                .font_weight(if is_best_bid || is_best_ask || is_at_price { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .child(div().w(px(9.)).flex().justify_center().text_color(bracket_col).child(left_br))
-                                                .child(div().text_color(price_color).child(price_str.clone()))
-                                                .child(div().w(px(9.)).flex().justify_center().text_color(bracket_col).child(right_br)),
+                                                .font_weight(
+                                                    if is_best_bid || is_best_ask || is_at_price {
+                                                        FontWeight::BOLD
+                                                    } else {
+                                                        FontWeight::NORMAL
+                                                    },
+                                                )
+                                                .child(
+                                                    div()
+                                                        .w(px(9.))
+                                                        .flex()
+                                                        .justify_center()
+                                                        .text_color(bracket_col)
+                                                        .child(left_br),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_color(price_color)
+                                                        .child(price_str.clone()),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .w(px(9.))
+                                                        .flex()
+                                                        .justify_center()
+                                                        .text_color(bracket_col)
+                                                        .child(right_br),
+                                                ),
                                         )
                                         // ── Ask cell ─────────────────────────
                                         .child(
@@ -368,8 +461,21 @@ impl Render for DomView {
                                                         .pl(px(3.))
                                                         .text_sm()
                                                         .font_weight(FontWeight::SEMIBOLD)
-                                                        .text_color(if *ask_size > 0.0 { gpui::white() } else { Hsla { h: 0.0, s: 0.0, l: 0.0, a: 0.0 } })
-                                                        .child(if *ask_size > 0.0 { format!("{}", *ask_size as u64) } else { String::new() }),
+                                                        .text_color(if *ask_size > 0.0 {
+                                                            gpui::white()
+                                                        } else {
+                                                            Hsla {
+                                                                h: 0.0,
+                                                                s: 0.0,
+                                                                l: 0.0,
+                                                                a: 0.0,
+                                                            }
+                                                        })
+                                                        .child(if *ask_size > 0.0 {
+                                                            format!("{}", *ask_size as u64)
+                                                        } else {
+                                                            String::new()
+                                                        }),
                                                 ),
                                         )
                                 },
@@ -388,9 +494,25 @@ impl Render for DomView {
                     .bg(cx.theme().tab_bar)
                     .text_xs()
                     .font_weight(FontWeight::BOLD)
-                    .child(div().w(px(bar_col_w)).flex().justify_end().pr(px(3.)).text_color(bid_label).child(format!("{}", total_bids)))
+                    .child(
+                        div()
+                            .w(px(bar_col_w))
+                            .flex()
+                            .justify_end()
+                            .pr(px(3.))
+                            .text_color(bid_label)
+                            .child(format!("{}", total_bids)),
+                    )
                     .child(div().w(px(price_col_w)))
-                    .child(div().w(px(bar_col_w)).flex().justify_start().pl(px(3.)).text_color(ask_label).child(format!("{}", total_asks))),
+                    .child(
+                        div()
+                            .w(px(bar_col_w))
+                            .flex()
+                            .justify_start()
+                            .pl(px(3.))
+                            .text_color(ask_label)
+                            .child(format!("{}", total_asks)),
+                    ),
             )
             .into_any_element()
     }

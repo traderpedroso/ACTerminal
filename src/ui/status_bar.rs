@@ -1,6 +1,6 @@
 use gpui::prelude::FluentBuilder as _;
 use gpui::*;
-use gpui_component::{ActiveTheme, Icon, IconName, h_flex, progress::Progress};
+use gpui_component::{h_flex, progress::Progress, ActiveTheme, Icon, IconName};
 
 /// Disk information snapshot used by the status bar.
 #[derive(Clone, Default)]

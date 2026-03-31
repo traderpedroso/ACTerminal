@@ -1,7 +1,7 @@
 use gpui::*;
+use gpui_component::ActiveTheme;
 use gpui_component::h_flex;
 use gpui_component::v_flex;
-use gpui_component::ActiveTheme;
 
 use crate::datafeed::{QuoteData, TickData};
 
@@ -246,7 +246,7 @@ impl OrderbookChart {
                         .text_sm()
                         .text_color(theme.muted_foreground)
                         .child("No price data..."),
-                )
+                );
             }
         };
 
@@ -314,7 +314,7 @@ impl OrderbookChart {
                         .text_sm()
                         .text_color(theme.muted_foreground)
                         .child("No price data..."),
-                )
+                );
             }
         };
 

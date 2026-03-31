@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SymbolDataType {
@@ -12,11 +11,12 @@ pub enum SymbolDataType {
 }
 
 impl SymbolDataType {
+    #[allow(dead_code)]
     pub fn prefix(&self) -> &'static str {
         match self {
-            SymbolDataType::Tick => "tick.",
-            SymbolDataType::Dom => "dom.",
-            SymbolDataType::Quote => "quote.",
+            SymbolDataType::Tick => "ticks.",
+            SymbolDataType::Dom => "doms.",
+            SymbolDataType::Quote => "quotes.",
         }
     }
 }
@@ -67,7 +67,7 @@ impl SymbolManager {
         }
     }
 
-    pub async fn set_symbol(&self, symbol: &str, data_types: Vec<SymbolDataType>) {
+    pub async fn set_symbol(&self, symbol: &str, data_types: Vec<SymbolDataType>) -> Result<(), mpsc::error::SendError<SymbolChangeEvent>> {
         let old_symbol = self.current_symbol.read().await.clone();
         let new_symbol = Some(symbol.to_string());
 
@@ -77,30 +77,13 @@ impl SymbolManager {
             .await
             .insert(symbol.to_string(), data_types.clone());
 
-        let _ = self
-            .change_tx
+        self.change_tx
             .send(SymbolChangeEvent {
                 old_symbol,
                 new_symbol,
                 data_types,
             })
-            .await;
-    }
-
-    pub async fn get_current_symbol(&self) -> Option<String> {
-        self.current_symbol.read().await.clone()
-    }
-
-    pub async fn get_subscriptions(&self) -> HashMap<String, Vec<SymbolDataType>> {
-        self.subscriptions.read().await.clone()
-    }
-
-    pub fn subscriptions_arc(&self) -> Arc<RwLock<HashMap<String, Vec<SymbolDataType>>>> {
-        self.subscriptions.clone()
-    }
-
-    pub fn current_symbol_arc(&self) -> Arc<RwLock<Option<String>>> {
-        self.current_symbol.clone()
+            .await
     }
 }
 
