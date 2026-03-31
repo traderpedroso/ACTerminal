@@ -30,7 +30,6 @@ pub struct StatusBarData<'a> {
 /// Render the bottom status bar.  This is intentionally a free function so
 /// every tab can call it without duplicating logic.
 pub fn render_status_bar<T: 'static>(data: StatusBarData<'_>, cx: &Context<T>) -> impl IntoElement {
-    let primary_disk = data.disk_info.first();
     let primary_battery = data.battery_info.first();
 
     h_flex()
@@ -39,36 +38,14 @@ pub fn render_status_bar<T: 'static>(data: StatusBarData<'_>, cx: &Context<T>) -
         .h_7()
         .text_sm()
         .items_center()
-        .justify_between()
+        .justify_end()
         .border_t_1()
         .border_color(cx.theme().border)
         .bg(cx.theme().tab_bar)
         .text_color(cx.theme().muted_foreground)
-        .child(
+        .child({
             h_flex()
                 .gap_4()
-                // ── Disk ──────────────────────────────────────────────────
-                .when_some(primary_disk, |this, disk| {
-                    let used_percent = if disk.total > 0 {
-                        (disk.used as f64 / disk.total as f64 * 100.0) as f32
-                    } else {
-                        0.0
-                    };
-                    this.child(
-                        h_flex()
-                            .gap_2()
-                            .w(px(135.))
-                            .items_center()
-                            .child(Icon::new(IconName::HardDrive))
-                            .child(
-                                Progress::new("status-disk")
-                                    .w_12()
-                                    .h_2()
-                                    .value(used_percent),
-                            )
-                            .child(format!("{:.0}%", used_percent)),
-                    )
-                })
                 // ── RAM (app) ──────────────────────────────────────────────
                 .child({
                     let mem_mb = data.app_memory as f64 / 1024.0 / 1024.0;
@@ -100,8 +77,8 @@ pub fn render_status_bar<T: 'static>(data: StatusBarData<'_>, cx: &Context<T>) -
                                 .value(cpu_percent as f32),
                         )
                         .child(format!("{:.1}%", cpu_percent))
-                }),
-        )
+                })
+        })
         .child(div().when_some(primary_battery, |this, battery| {
             this.child(
                 h_flex()

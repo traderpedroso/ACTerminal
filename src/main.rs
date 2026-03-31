@@ -583,7 +583,7 @@ impl SystemMonitor {
                             .child(self.quotes_view.clone()),
                     )
                     .child(
-                        Select::new(&select_entity).small().w(px(100.)),
+                        Select::new(&select_entity).small().w(px(50.)),
                     ),
             )
             // DOM and Times & Sales panels
@@ -720,7 +720,7 @@ fn main() {
 
         let window_options = WindowOptions {
             titlebar: Some(TitleBar::title_bar_options()),
-            window_bounds: Some(WindowBounds::centered(size(px(820.), px(780.)), cx)),
+            window_bounds: Some(WindowBounds::centered(size(px(520.), px(780.)), cx)),
             ..Default::default()
         };
 
