@@ -12,7 +12,7 @@ use crate::ui::dto::UiDomData;
 const TICK_SIZE: f64 = 0.00005;
 
 /// Minimum levels to show on each side (bid/ask)
-const MIN_LEVELS_PER_SIDE: usize = 10;
+const MIN_LEVELS_PER_SIDE: usize = 5;
 
 /// Row height bounds (pixels). Dynamic height is clamped to this range.
 const ROW_H_MIN: f32 = 16.0;
