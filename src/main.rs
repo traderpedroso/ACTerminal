@@ -7,8 +7,8 @@ mod ui;
 
 use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData};
 use ui::{
-    BatteryInfo, DiskInfo, DomView, ProcessTableDelegate, StatusBarData,
-    TimesAndSalesEntry, TimesAndSalesView, UiDomData, UiTickData, render_status_bar,
+    BatteryInfo, DiskInfo, DomView, ProcessTableDelegate, QuotesView, StatusBarData,
+    TimesAndSalesEntry, TimesAndSalesView, UiDomData, UiQuoteData, UiTickData, render_status_bar,
 };
 
 use std::time::Duration;
@@ -95,6 +95,7 @@ pub struct SystemMonitor {
     // ── OrderFlow tab ─────────────────────────────────────────────────────────
     times_and_sales: Entity<TimesAndSalesView>,
     dom_view: Entity<DomView>,
+    quotes_view: Entity<QuotesView>,
     datafeed_rx: Option<mpsc::Receiver<(String, DataType, String)>>,
     symbol_select: Entity<SelectState<Vec<SharedString>>>,
     current_symbol: Arc<RwLock<String>>,
@@ -118,6 +119,7 @@ impl SystemMonitor {
 
         let times_and_sales = cx.new(|_| TimesAndSalesView::new());
         let dom_view = cx.new(|_| DomView::new());
+        let quotes_view = cx.new(|_| QuotesView::new());
 
         // ── Setup symbol dropdown ─────────────────────────────────────────────
         let available_symbols = datafeed::get_available_symbols()
@@ -217,6 +219,7 @@ impl SystemMonitor {
             process_table,
             times_and_sales: times_and_sales.clone(),
             dom_view: dom_view.clone(),
+            quotes_view: quotes_view.clone(),
             datafeed_rx: Some(datafeed_rx),
             symbol_select: symbol_select.clone(),
             current_symbol: Arc::new(RwLock::new(initial_symbol.to_string())),
@@ -229,6 +232,7 @@ impl SystemMonitor {
             let symbol_manager = symbol_manager.clone();
             let ts_entity = times_and_sales.clone();
             let dom_entity = dom_view.clone();
+            let quotes_entity = quotes_view.clone();
             move |this: &mut SystemMonitor, _entity, event: &SelectEvent<Vec<SharedString>>, cx| {
                 if let SelectEvent::Confirm(Some(new_symbol)) = event {
                     let old_symbol = this.current_symbol.blocking_read().clone();
@@ -258,6 +262,10 @@ impl SystemMonitor {
                             cx.notify();
                         });
                         dom_entity.update(cx, |v, cx| {
+                            v.clear();
+                            cx.notify();
+                        });
+                        quotes_entity.update(cx, |v, cx| {
                             v.clear();
                             cx.notify();
                         });
@@ -301,6 +309,7 @@ impl SystemMonitor {
 
         let ts_entity = self.times_and_sales.clone();
         let dom_entity = self.dom_view.clone();
+        let quotes_entity = self.quotes_view.clone();
         let current_symbol = self.current_symbol.clone();
 
         cx.spawn(async move |_this, cx| {
@@ -347,7 +356,12 @@ impl SystemMonitor {
                                 }
                             }
                             DataType::Quote => {
-                                if let Ok(_quote) = serde_json::from_str::<QuoteData>(&json) {
+                                if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
+                                    let ui_quote = UiQuoteData::from(quote);
+                                    quotes_entity.update(cx, |view, cx| {
+                                        view.update_quote(ui_quote);
+                                        cx.notify();
+                                    });
                                 }
                             }
                         }
@@ -550,55 +564,74 @@ impl SystemMonitor {
         let select_entity = self.symbol_select.clone();
 
         // Two-panel layout: DOM on the LEFT, Times & Sales on the RIGHT (fixed widths)
-        h_flex()
+        v_flex()
             .size_full()
-            // DOM panel (fixed width on LEFT)
+            // Quotes panel at top (full width + symbol selector)
             .child(
-                v_flex()
-                    .w(px(310.))
-                    .h_full()
-                    .border_r_1()
+                h_flex()
+                    .w_full()
+                    .h(px(28.))
+                    .px_2()
+                    .items_center()
+                    .justify_between()
+                    .bg(cx.theme().tab_bar)
+                    .border_b_1()
                     .border_color(cx.theme().border)
-                    // Sub-header
                     .child(
-                        h_flex()
-                            .px_2()
-                            .py_1()
-                            .border_b_1()
-                            .border_color(cx.theme().border)
-                            .bg(cx.theme().tab_bar)
-                            .text_xs()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(cx.theme().foreground)
-                            .child("DOM"),
+                        div()
+                            .flex_1()
+                            .child(self.quotes_view.clone()),
                     )
-                    .child(div().flex_1().child(self.dom_view.clone())),
-            )
-            // Times & Sales panel (fills remaining space on RIGHT)
-            .child(
-                v_flex()
-                    .flex_1()
-                    .h_full()
-                    // Sub-header with Dropdown
                     .child(
-                        h_flex()
-                            .px_2()
-                            .py(px(4.))
-                            .border_b_1()
+                        Select::new(&select_entity).small().w(px(100.)),
+                    ),
+            )
+            // DOM and Times & Sales panels
+            .child(
+                h_flex()
+                    .flex_1()
+                    // DOM panel (fixed width on LEFT)
+                    .child(
+                        v_flex()
+                            .w(px(310.))
+                            .h_full()
+                            .border_r_1()
                             .border_color(cx.theme().border)
-                            .bg(cx.theme().tab_bar)
-                            .items_center()
-                            .justify_between()
+                            // Sub-header
                             .child(
-                                div()
+                                h_flex()
+                                    .px_2()
+                                    .py_1()
+                                    .border_b_1()
+                                    .border_color(cx.theme().border)
+                                    .bg(cx.theme().tab_bar)
+                                    .text_xs()
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(cx.theme().foreground)
+                                    .child("DOM"),
+                            )
+                            .child(div().flex_1().child(self.dom_view.clone())),
+                    )
+                    // Times & Sales panel (fills remaining space on RIGHT)
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .h_full()
+                            // Sub-header (NO dropdown)
+                            .child(
+                                h_flex()
+                                    .px_2()
+                                    .py_1()
+                                    .border_b_1()
+                                    .border_color(cx.theme().border)
+                                    .bg(cx.theme().tab_bar)
                                     .text_xs()
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(cx.theme().foreground)
                                     .child("Times & Sales"),
                             )
-                            .child(Select::new(&select_entity).small().w(px(100.))),
+                            .child(div().flex_1().child(self.times_and_sales.clone())),
                     )
-                    .child(div().flex_1().child(self.times_and_sales.clone())),
             )
     }
 }

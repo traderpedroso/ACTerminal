@@ -144,37 +144,12 @@ impl Render for DomView {
         // Query the actual viewport height so rows scale with the window.
         let viewport_h = f32::from(window.viewport_size().height);
 
-        // Calculate row count including padding (at least MIN_LEVELS_PER_SIDE * 2 + spread)
-        let dom_range = if let Some(ref dom) = self.data {
-            if dom.bids.is_empty() && dom.offers.is_empty() {
-                0
-            } else {
-                let to_tick = |p: f64| -> i64 { (p / TICK_SIZE).round() as i64 };
-                let lo_bid = dom
-                    .bids
-                    .iter()
-                    .filter(|e| e.size > 0.0)
-                    .map(|e| to_tick(e.price))
-                    .min()
-                    .unwrap_or(0);
-                let hi_ask = dom
-                    .offers
-                    .iter()
-                    .filter(|e| e.size > 0.0)
-                    .map(|e| to_tick(e.price))
-                    .max()
-                    .unwrap_or(lo_bid + 1);
-                // Include padding on both sides
-                (hi_ask - lo_bid + 1) as usize + (MIN_LEVELS_PER_SIDE * 2)
-            }
-        } else {
-            20 + (MIN_LEVELS_PER_SIDE * 2) // 10 bid + 10 ask + padding
-        };
-
-        let total_rows = dom_range.max(20) as f32; // minimum 20 rows
+        // Fixed number of rows: real data (10 bid + 10 ask) + padding (5 each side)
+        let fixed_total_rows: f32 = 30.0;
         let body_h = (viewport_h - CHROME_H).max(200.0);
-        // Each row gets an equal share of the body height, clamped to readable range
-        let row_h: f32 = (body_h / total_rows).clamp(ROW_H_MIN, ROW_H_MAX);
+
+        // Calculate row height to fill available space (no clamping, fills entire area)
+        let row_h: f32 = body_h / fixed_total_rows;
 
         // ── Column widths (fixed — price decimal width drives minimum) ─────────
         let bar_col_w: f32 = 80.0;
@@ -310,12 +285,12 @@ impl Render for DomView {
                     .id("dom-body")
                     .w_full()
                     .flex_1()
-                    .overflow_hidden() // clips outer rows; spread stays centred
+                    .overflow_hidden() // clips outer rows; top stays at top, bottom at bottom
                     .child(
                         v_flex()
                             .w_full()
                             .h_full()
-                            .justify_center() // centres the block; overflow clips symmetrically
+                            .justify_start() // top anchored to header, bottom to footer
                             .children(ladder.iter().map(
                                 |(price_str, bid_size, ask_size, row_tick)| {
                                     let row_tick = *row_tick;
