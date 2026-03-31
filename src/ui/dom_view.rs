@@ -11,6 +11,9 @@ use crate::ui::dto::UiDomData;
 /// Fixed tick size: currency futures are spaced 0.00005 apart.
 const TICK_SIZE: f64 = 0.00005;
 
+/// Minimum levels to show on each side (bid/ask)
+const MIN_LEVELS_PER_SIDE: usize = 10;
+
 /// Row height bounds (pixels). Dynamic height is clamped to this range.
 const ROW_H_MIN: f32 = 16.0;
 const ROW_H_MAX: f32 = 32.0;
@@ -116,9 +119,12 @@ impl DomView {
         let lo_bid = bid_map.keys().copied().min().unwrap_or(best_bid);
         let hi_ask = ask_map.keys().copied().max().unwrap_or(best_ask);
 
-        // Use actual DOM data bounds - limit vertical range to first bid and last ask
-        let range_bottom = lo_bid;
-        let range_top = hi_ask;
+        // Ensure at least MIN_LEVELS_PER_SIDE on each side with padding simulation
+        let lo_bid_with_padding = lo_bid - MIN_LEVELS_PER_SIDE as i64;
+        let hi_ask_with_padding = hi_ask + MIN_LEVELS_PER_SIDE as i64;
+
+        let range_bottom = lo_bid_with_padding;
+        let range_top = hi_ask_with_padding;
 
         let mut rows = Vec::new();
         let mut tick = range_top;
@@ -138,7 +144,7 @@ impl Render for DomView {
         // Query the actual viewport height so rows scale with the window.
         let viewport_h = f32::from(window.viewport_size().height);
 
-        // Calculate actual row count from DOM data
+        // Calculate row count including padding (at least MIN_LEVELS_PER_SIDE * 2 + spread)
         let dom_range = if let Some(ref dom) = self.data {
             if dom.bids.is_empty() && dom.offers.is_empty() {
                 0
@@ -158,10 +164,11 @@ impl Render for DomView {
                     .map(|e| to_tick(e.price))
                     .max()
                     .unwrap_or(lo_bid + 1);
-                (hi_ask - lo_bid + 1) as usize
+                // Include padding on both sides
+                (hi_ask - lo_bid + 1) as usize + (MIN_LEVELS_PER_SIDE * 2)
             }
         } else {
-            20 // fallback: 10 bid + 10 ask
+            20 + (MIN_LEVELS_PER_SIDE * 2) // 10 bid + 10 ask + padding
         };
 
         let total_rows = dom_range.max(20) as f32; // minimum 20 rows

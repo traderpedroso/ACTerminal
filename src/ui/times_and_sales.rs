@@ -98,17 +98,17 @@ impl TimesAndSalesView {
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
-            .px_2()
+            .px_1()
             .py_1()
-            .gap_0()
+            .gap_1()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().tab_bar)
             .text_xs()
             .text_color(cx.theme().muted_foreground)
-            .child(div().w(px(70.)).child("Time"))
-            .child(div().w(px(80.)).child("Price"))
-            .child(div().w(px(50.)).child("Size"))
+            .child(div().w(px(60.)).child("Time"))
+            .child(div().w(px(70.)).child("Price"))
+            .child(div().w(px(40.)).child("Size"))
             .child(div().flex_1()) // fills remaining space on the right
     }
 
@@ -125,7 +125,7 @@ impl TimesAndSalesView {
                     linear_color_stop(crate::ui::theme::buy_market_gradient_top(), 0.0),
                     linear_color_stop(crate::ui::theme::buy_market_gradient_bottom(), 1.0),
                 );
-                h_flex().px_2().py(px(1.)).gap_0().bg(grad).text_xs()
+                h_flex().px_1().py(px(1.)).gap_1().bg(grad).text_xs()
             }
             TradeSide::SellMarket => {
                 let grad = linear_gradient(
@@ -133,18 +133,18 @@ impl TimesAndSalesView {
                     linear_color_stop(crate::ui::theme::sell_market_gradient_top(), 0.0),
                     linear_color_stop(crate::ui::theme::sell_market_gradient_bottom(), 1.0),
                 );
-                h_flex().px_2().py(px(1.)).gap_0().bg(grad).text_xs()
+                h_flex().px_1().py(px(1.)).gap_1().bg(grad).text_xs()
             }
             TradeSide::BuyPending | TradeSide::SellPending => h_flex()
-                .px_2()
+                .px_1()
                 .py(px(1.))
-                .gap_0()
+                .gap_1()
                 .bg(crate::ui::theme::buy_pending_bg())
                 .text_xs(),
             TradeSide::Mid => h_flex()
-                .px_2()
+                .px_1()
                 .py(px(1.))
-                .gap_0()
+                .gap_1()
                 .bg(cx.theme().background)
                 .text_xs(),
         };
@@ -160,14 +160,14 @@ impl TimesAndSalesView {
             // Time
             .child(
                 div()
-                    .w(px(70.))
+                    .w(px(60.))
                     .text_color(time_color)
                     .child(entry.time.clone()),
             )
             // Price
             .child(
                 div()
-                    .w(px(80.))
+                    .w(px(70.))
                     .font_weight(if is_market || is_pending {
                         FontWeight::BOLD
                     } else {
@@ -183,7 +183,7 @@ impl TimesAndSalesView {
             // Size
             .child(
                 div()
-                    .w(px(50.))
+                    .w(px(40.))
                     .text_color(if is_pending {
                         text
                     } else {

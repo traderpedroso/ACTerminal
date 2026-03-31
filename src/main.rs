@@ -549,16 +549,36 @@ impl SystemMonitor {
     ) -> impl IntoElement {
         let select_entity = self.symbol_select.clone();
 
-        // Two-panel layout: Times & Sales on the LEFT, DOM on the RIGHT (fixed widths)
+        // Two-panel layout: DOM on the LEFT, Times & Sales on the RIGHT (fixed widths)
         h_flex()
             .size_full()
-            // Times & Sales panel (fixed width on LEFT)
+            // DOM panel (fixed width on LEFT)
             .child(
                 v_flex()
-                    .w(px(280.))
+                    .w(px(310.))
                     .h_full()
                     .border_r_1()
                     .border_color(cx.theme().border)
+                    // Sub-header
+                    .child(
+                        h_flex()
+                            .px_2()
+                            .py_1()
+                            .border_b_1()
+                            .border_color(cx.theme().border)
+                            .bg(cx.theme().tab_bar)
+                            .text_xs()
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(cx.theme().foreground)
+                            .child("DOM"),
+                    )
+                    .child(div().flex_1().child(self.dom_view.clone())),
+            )
+            // Times & Sales panel (fills remaining space on RIGHT)
+            .child(
+                v_flex()
+                    .flex_1()
+                    .h_full()
                     // Sub-header with Dropdown
                     .child(
                         h_flex()
@@ -579,26 +599,6 @@ impl SystemMonitor {
                             .child(Select::new(&select_entity).small().w(px(100.))),
                     )
                     .child(div().flex_1().child(self.times_and_sales.clone())),
-            )
-            // DOM panel (fixed width on RIGHT)
-            .child(
-                v_flex()
-                    .flex_1()
-                    .h_full()
-                    // Sub-header
-                    .child(
-                        h_flex()
-                            .px_2()
-                            .py_1()
-                            .border_b_1()
-                            .border_color(cx.theme().border)
-                            .bg(cx.theme().tab_bar)
-                            .text_xs()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(cx.theme().foreground)
-                            .child("DOM"),
-                    )
-                    .child(div().flex_1().child(self.dom_view.clone())),
             )
     }
 }
