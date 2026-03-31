@@ -11,11 +11,6 @@ use crate::ui::dto::UiDomData;
 /// Fixed tick size: currency futures are spaced 0.00005 apart.
 const TICK_SIZE: f64 = 0.00005;
 
-/// Simulated padding levels above/below the real 10 bid + 10 ask levels.
-/// With `justify_center` + `overflow_hidden`, these act as scroll context —
-/// the window clips them so only the centred spread is always visible.
-const SIMULATED_EXTRA: usize = 12;
-
 /// Row height bounds (pixels). Dynamic height is clamped to this range.
 const ROW_H_MIN: f32 = 16.0;
 const ROW_H_MAX: f32 = 32.0;
@@ -121,8 +116,9 @@ impl DomView {
         let lo_bid = bid_map.keys().copied().min().unwrap_or(best_bid);
         let hi_ask = ask_map.keys().copied().max().unwrap_or(best_ask);
 
-        let range_bottom = lo_bid - SIMULATED_EXTRA as i64;
-        let range_top = hi_ask + SIMULATED_EXTRA as i64;
+        // Use actual DOM data bounds - limit vertical range to first bid and last ask
+        let range_bottom = lo_bid;
+        let range_top = hi_ask;
 
         let mut rows = Vec::new();
         let mut tick = range_top;
@@ -141,7 +137,34 @@ impl Render for DomView {
         // ── Responsive row height ─────────────────────────────────────────────
         // Query the actual viewport height so rows scale with the window.
         let viewport_h = f32::from(window.viewport_size().height);
-        let total_rows = (SIMULATED_EXTRA * 2 + 20) as f32; // 10 ask + 10 bid + padding×2
+
+        // Calculate actual row count from DOM data
+        let dom_range = if let Some(ref dom) = self.data {
+            if dom.bids.is_empty() && dom.offers.is_empty() {
+                0
+            } else {
+                let to_tick = |p: f64| -> i64 { (p / TICK_SIZE).round() as i64 };
+                let lo_bid = dom
+                    .bids
+                    .iter()
+                    .filter(|e| e.size > 0.0)
+                    .map(|e| to_tick(e.price))
+                    .min()
+                    .unwrap_or(0);
+                let hi_ask = dom
+                    .offers
+                    .iter()
+                    .filter(|e| e.size > 0.0)
+                    .map(|e| to_tick(e.price))
+                    .max()
+                    .unwrap_or(lo_bid + 1);
+                (hi_ask - lo_bid + 1) as usize
+            }
+        } else {
+            20 // fallback: 10 bid + 10 ask
+        };
+
+        let total_rows = dom_range.max(20) as f32; // minimum 20 rows
         let body_h = (viewport_h - CHROME_H).max(200.0);
         // Each row gets an equal share of the body height, clamped to readable range
         let row_h: f32 = (body_h / total_rows).clamp(ROW_H_MIN, ROW_H_MAX);
