@@ -14,6 +14,7 @@ pub use trade_side::TradeSide;
 pub use types::*;
 pub use dto::{UiDomData, UiDomEntry, UiQuoteData, UiTickData};
 pub use transformer::{transform_dom, transform_quote, transform_tick, get_decimals_for_symbol, get_tick_size_for_symbol, needs_inversion};
+pub use symbols::{get_display_name, get_symbol_from_display};
 
 use std::sync::Arc;
 use tokio::sync::mpsc;

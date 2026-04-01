@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 mod datafeed;
 mod ui;
 
-use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData, transform_dom, transform_quote, transform_tick};
+use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData, transform_dom, transform_quote, transform_tick, get_display_name, get_symbol_from_display};
 use ui::{
     DomView, ProcessTableDelegate, QuotesView, StatusBarData,
     TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
@@ -117,18 +117,19 @@ impl SystemMonitor {
         let dom_view = cx.new(|_| DomView::new());
         let quotes_view = cx.new(|_| QuotesView::new());
 
-        // ── Setup symbol dropdown ─────────────────────────────────────────────
+        // Map CME codes → display names for the dropdown
         let available_symbols = datafeed::get_available_symbols()
             .into_iter()
-            .map(|s| s.name.into())
+            .map(|s| get_display_name(&s.name).into())
             .collect::<Vec<SharedString>>();
 
         let initial_symbol = "6E";
+        let initial_display = get_display_name(initial_symbol);
 
         let symbol_select = cx.new(|cx| SelectState::new(available_symbols, None, window, cx));
 
         symbol_select.update(cx, |state, cx| {
-            state.set_selected_value(&gpui::SharedString::from(initial_symbol), window, cx);
+            state.set_selected_value(&gpui::SharedString::from(initial_display), window, cx);
         });
 
         // ── Setup Symbol Manager ──────────────────────────────────────────────
@@ -227,10 +228,11 @@ impl SystemMonitor {
             let dom_entity = dom_view.clone();
             let quotes_entity = quotes_view.clone();
             move |this: &mut SystemMonitor, _entity, event: &SelectEvent<Vec<SharedString>>, cx| {
-                if let SelectEvent::Confirm(Some(new_symbol)) = event {
+                if let SelectEvent::Confirm(Some(display_name)) = event {
+                    // Map display name back to CME code
+                    let new_sym_str = get_symbol_from_display(display_name.as_ref()).to_string();
                     let old_symbol = this.current_symbol.blocking_read().clone();
-                    if old_symbol != new_symbol.as_ref() {
-                        let new_sym_str = new_symbol.to_string();
+                    if old_symbol != new_sym_str {
 
                         *this.current_symbol.blocking_write() = new_sym_str.clone();
 
@@ -528,24 +530,28 @@ impl SystemMonitor {
         // Two-panel layout: DOM on the LEFT, Times & Sales on the RIGHT (fixed widths)
         v_flex()
             .size_full()
-            // Quotes panel at top (full width + symbol selector)
+            // Quotes on Left + Symbol Selector on Right
             .child(
                 h_flex()
                     .w_full()
                     .h(px(28.))
-                    .px_2()
+                    .pl(px(8.))
+                    .pr_0()
                     .items_center()
                     .justify_between()
                     .bg(cx.theme().tab_bar)
                     .border_b_1()
                     .border_color(cx.theme().border)
+                    // Quotes on the left, fills available space
                     .child(
                         div()
                             .flex_1()
+                            .overflow_hidden()
                             .child(self.quotes_view.clone()),
                     )
+                    // Selector on the right, flush to the right edge
                     .child(
-                        Select::new(&select_entity).small().w(px(50.)),
+                        Select::new(&select_entity).small().w(px(100.)),
                     ),
             )
             // DOM and Times & Sales panels

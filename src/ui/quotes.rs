@@ -29,9 +29,6 @@ impl Render for QuotesView {
                 .h(px(28.))
                 .px_2()
                 .items_center()
-                .bg(cx.theme().tab_bar)
-                .border_b_1()
-                .border_color(cx.theme().border)
                 .child(
                     div()
                         .text_xs()
@@ -70,62 +67,88 @@ impl Render for QuotesView {
         h_flex()
             .w_full()
             .h(px(28.))
-            .px_2()
-            .gap_3()
+            .pl(px(8.))
+            .gap_4()
             .items_center()
-            .justify_between()
-            .bg(cx.theme().tab_bar)
-            .border_b_1()
-            .border_color(cx.theme().border)
-            .text_xs()
-            .text_color(cx.theme().muted_foreground)
             .child(
                 div()
                     .flex()
                     .gap_1()
+                    .items_baseline()
                     .child(
                         div()
+                            .text_xs()
                             .text_color(cx.theme().muted_foreground)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Open:"),
+                            .font_weight(FontWeight::BOLD)
+                            .child("OPEN:"),
                     )
-                    .child(div().text_color(cx.theme().foreground).child(open_str)),
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(cx.theme().foreground)
+                            .child(open_str)
+                    ),
             )
             .child(
                 div()
                     .flex()
                     .gap_1()
+                    .items_baseline()
                     .child(
                         div()
+                            .text_xs()
                             .text_color(high_color)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("High:"),
+                            .font_weight(FontWeight::BOLD)
+                            .child("HIGH:"),
                     )
-                    .child(div().text_color(high_color).child(high_str)),
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(high_color)
+                            .child(high_str)
+                    ),
             )
             .child(
                 div()
                     .flex()
                     .gap_1()
+                    .items_baseline()
                     .child(
                         div()
+                            .text_xs()
                             .text_color(low_color)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Low:"),
+                            .font_weight(FontWeight::BOLD)
+                            .child("LOW:"),
                     )
-                    .child(div().text_color(low_color).child(low_str)),
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(low_color)
+                            .child(low_str)
+                    ),
             )
             .child(
                 div()
                     .flex()
                     .gap_1()
+                    .items_baseline()
                     .child(
                         div()
+                            .text_xs()
                             .text_color(cx.theme().muted_foreground)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Range:"),
+                            .font_weight(FontWeight::BOLD)
+                            .child("RANGE:"),
                     )
-                    .child(div().text_color(cx.theme().foreground).child(range_str)),
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(cx.theme().foreground)
+                            .child(range_str)
+                    ),
             )
             .into_any_element()
     }

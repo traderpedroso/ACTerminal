@@ -505,7 +505,26 @@ impl Render for DomView {
                             .text_color(bid_label)
                             .child(format!("{}", total_bids)),
                     )
-                    .child(div().w(px(price_col_w)))
+                    .child(
+                        div()
+                            .w(px(price_col_w))
+                            .flex()
+                            .justify_center()
+                            .child({
+                                let total = (total_bids + total_asks) as f64;
+                                if total > 0.0 {
+                                    let imb = ((total_bids as f64 - total_asks as f64) / total) * 100.0;
+                                    let imb_color = if imb > 0.0 { bid_label } else if imb < 0.0 { ask_label } else { cx.theme().muted_foreground };
+                                    div()
+                                        .text_color(imb_color)
+                                        .child(format!("{:.1}%", imb.abs()))
+                                } else {
+                                    div()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child("0%")
+                                }
+                            })
+                    )
                     .child(
                         div()
                             .w(px(bar_col_w))

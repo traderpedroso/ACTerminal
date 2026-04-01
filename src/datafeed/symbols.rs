@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SymbolDataType {
@@ -67,7 +67,11 @@ impl SymbolManager {
         }
     }
 
-    pub async fn set_symbol(&self, symbol: &str, data_types: Vec<SymbolDataType>) -> Result<(), mpsc::error::SendError<SymbolChangeEvent>> {
+    pub async fn set_symbol(
+        &self,
+        symbol: &str,
+        data_types: Vec<SymbolDataType>,
+    ) -> Result<(), mpsc::error::SendError<SymbolChangeEvent>> {
         let old_symbol = self.current_symbol.read().await.clone();
         let new_symbol = Some(symbol.to_string());
 
@@ -84,6 +88,39 @@ impl SymbolManager {
                 data_types,
             })
             .await
+    }
+}
+
+/// Convert a CME futures code to its display name (Forex pair format).
+/// Used in the symbol selector UI.
+pub fn get_display_name(symbol: &str) -> &'static str {
+    match symbol {
+        "6E" => "EURUSD",
+        "6B" => "GBPUSD",
+        "6A" => "AUDUSD",
+        "6N" => "NZDUSD",
+        "6L" => "USDBRL",
+        "6J" => "USDJPY",
+        "6C" => "USDCAD",
+        "6S" => "USDCHF",
+        "6M" => "USDMXN",
+        _ => "UNKNOWN",
+    }
+}
+
+/// Convert a display name back to the internal CME futures code.
+pub fn get_symbol_from_display(display: &str) -> &'static str {
+    match display {
+        "EURUSD" => "6E",
+        "GBPUSD" => "6B",
+        "AUDUSD" => "6A",
+        "NZDUSD" => "6N",
+        "USDBRL" => "6L",
+        "USDJPY" => "6J",
+        "USDCAD" => "6C",
+        "USDCHF" => "6S",
+        "USDMXN" => "6M",
+        _ => "6E", // safe fallback
     }
 }
 
