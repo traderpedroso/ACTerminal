@@ -358,7 +358,7 @@ impl SystemMonitor {
                                     });
                                     // Also update DOM with last trade price for yellow brackets
                                     dom_entity.update(cx, |view, cx| {
-                                        view.update_last_trade_price(last_price);
+                                        view.update_show_last_trade(last_price);
                                         cx.notify();
                                     });
                                 }
