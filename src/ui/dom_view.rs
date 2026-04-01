@@ -210,13 +210,13 @@ impl Render for DomView {
 
         // ── Theme colours ─────────────────────────────────────────────────────
         let bid_label = Hsla {
-            h: 215.0 / 360.0,
+            h: 210.0 / 360.0, // blue
             s: 0.70,
             l: 0.72,
             a: 1.0,
         };
         let ask_label = Hsla {
-            h: 4.0 / 360.0,
+            h: 0.0 / 360.0, // red
             s: 0.75,
             l: 0.65,
             a: 1.0,
@@ -299,16 +299,16 @@ impl Render for DomView {
 
                                     let price_color: Hsla = if is_best_bid {
                                         Hsla {
-                                            h: 185.0 / 360.0,
+                                            h: 210.0 / 360.0, // blue
                                             s: 0.85,
                                             l: 0.65,
                                             a: 1.0,
                                         }
                                     } else if is_best_ask {
                                         Hsla {
-                                            h: 28.0 / 360.0,
+                                            h: 0.0 / 360.0, // red
                                             s: 0.90,
-                                            l: 0.62,
+                                            l: 0.60,
                                             a: 1.0,
                                         }
                                     } else {
@@ -331,15 +331,15 @@ impl Render for DomView {
 
                                     let row_bg: Option<Hsla> = if is_best_bid {
                                         Some(Hsla {
-                                            h: 215.0 / 360.0,
+                                            h: 210.0 / 360.0, // blue
                                             s: 0.60,
-                                            l: 0.20,
+                                            l: 0.15,
                                             a: 0.40,
                                         })
                                     } else if is_best_ask {
                                         Some(Hsla {
-                                            h: 4.0 / 360.0,
-                                            s: 0.60,
+                                            h: 0.0 / 360.0, // red
+                                            s: 0.70,
                                             l: 0.18,
                                             a: 0.40,
                                         })

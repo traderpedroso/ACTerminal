@@ -27,7 +27,7 @@ pub fn buy_market_gradient_bottom() -> Hsla {
 /// Strong red gradient start for SELL_MARKET trades.
 pub fn sell_market_gradient_top() -> Hsla {
     Hsla {
-        h: 0.0,
+        h: 0.0 / 360.0, // red
         s: 0.90,
         l: 0.55,
         a: 0.50,
@@ -37,7 +37,7 @@ pub fn sell_market_gradient_top() -> Hsla {
 /// Strong red gradient end for SELL_MARKET trades (fades to background).
 pub fn sell_market_gradient_bottom() -> Hsla {
     Hsla {
-        h: 3.0 / 360.0,
+        h: 0.0 / 360.0, // red
         s: 0.80,
         l: 0.18,
         a: 0.05,
@@ -80,7 +80,7 @@ pub fn pending_text_blue() -> Hsla {
 #[allow(dead_code)]
 pub fn pending_text_red() -> Hsla {
     Hsla {
-        h: 0.0,
+        h: 0.0 / 360.0, // red
         s: 0.75,
         l: 0.65,
         a: 1.0,
