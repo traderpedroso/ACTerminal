@@ -51,25 +51,13 @@ impl Render for QuotesView {
         let range = quote.high() - quote.low();
         let range_str = fmt(range);
 
-        let high_color = Hsla {
-            h: 0.0,
-            s: 0.8,
-            l: 0.45,
-            a: 1.0,
-        };
-        let low_color = Hsla {
-            h: 0.55,
-            s: 0.8,
-            l: 0.45,
-            a: 1.0,
-        };
-
         h_flex()
             .w_full()
             .h(px(28.))
             .pl(px(8.))
             .gap_4()
             .items_center()
+            .justify_start()
             .child(
                 div()
                     .flex()
@@ -87,7 +75,7 @@ impl Render for QuotesView {
                             .text_sm()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(cx.theme().foreground)
-                            .child(open_str)
+                            .child(open_str),
                     ),
             )
             .child(
@@ -98,7 +86,7 @@ impl Render for QuotesView {
                     .child(
                         div()
                             .text_xs()
-                            .text_color(high_color)
+                            .text_color(cx.theme().muted_foreground)
                             .font_weight(FontWeight::BOLD)
                             .child("HIGH:"),
                     )
@@ -106,8 +94,13 @@ impl Render for QuotesView {
                         div()
                             .text_sm()
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(high_color)
-                            .child(high_str)
+                            .text_color(Hsla {
+                                h: 120.0 / 360.0,
+                                s: 0.7,
+                                l: 0.5,
+                                a: 1.0,
+                            })
+                            .child(high_str),
                     ),
             )
             .child(
@@ -118,7 +111,7 @@ impl Render for QuotesView {
                     .child(
                         div()
                             .text_xs()
-                            .text_color(low_color)
+                            .text_color(cx.theme().muted_foreground)
                             .font_weight(FontWeight::BOLD)
                             .child("LOW:"),
                     )
@@ -126,8 +119,13 @@ impl Render for QuotesView {
                         div()
                             .text_sm()
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(low_color)
-                            .child(low_str)
+                            .text_color(Hsla {
+                                h: 0.0 / 360.0,
+                                s: 0.8,
+                                l: 0.55,
+                                a: 1.0,
+                            })
+                            .child(low_str),
                     ),
             )
             .child(
@@ -147,7 +145,7 @@ impl Render for QuotesView {
                             .text_sm()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(cx.theme().foreground)
-                            .child(range_str)
+                            .child(range_str),
                     ),
             )
             .into_any_element()

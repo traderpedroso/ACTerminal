@@ -530,28 +530,25 @@ impl SystemMonitor {
         // Two-panel layout: DOM on the LEFT, Times & Sales on the RIGHT (fixed widths)
         v_flex()
             .size_full()
-            // Quotes on Left + Symbol Selector on Right
+            // Quotes only (no selector)
             .child(
                 h_flex()
                     .w_full()
                     .h(px(28.))
                     .pl(px(8.))
-                    .pr_0()
+                    .pr_2()
                     .items_center()
                     .justify_between()
                     .bg(cx.theme().tab_bar)
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    // Quotes on the left, fills available space
+                    // Quotes on the right, fills available space
                     .child(
                         div()
                             .flex_1()
+                            .justify_end()
                             .overflow_hidden()
                             .child(self.quotes_view.clone()),
-                    )
-                    // Selector on the right, flush to the right edge
-                    .child(
-                        Select::new(&select_entity).small().w(px(100.)),
                     ),
             )
             // DOM and Times & Sales panels
@@ -585,18 +582,22 @@ impl SystemMonitor {
                         v_flex()
                             .flex_1()
                             .h_full()
-                            // Sub-header (NO dropdown)
+                            // Sub-header with selector
                             .child(
                                 h_flex()
                                     .px_2()
                                     .py_1()
+                                    .gap_1()
                                     .border_b_1()
                                     .border_color(cx.theme().border)
                                     .bg(cx.theme().tab_bar)
                                     .text_xs()
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(cx.theme().foreground)
-                                    .child("Times & Sales"),
+                                    .child("Times & Sales")
+                                    .child(
+                                        Select::new(&select_entity).small().w(px(100.)),
+                                    ),
                             )
                             .child(div().flex_1().child(self.times_and_sales.clone())),
                     )
