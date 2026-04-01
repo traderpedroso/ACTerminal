@@ -99,13 +99,21 @@ impl DomView {
         let decimals = dom.decimals;
         let fmt = |price: f64| -> String { format!("{:.width$}", price, width = decimals) };
 
-        let bids   = &dom.bids;
+        let bids = &dom.bids;
         let offers = &dom.offers;
 
         // Collect all unique prices that carry volume
         let mut all_prices: Vec<f64> = Vec::new();
-        for e in bids   { if e.size > 0.0 { all_prices.push(e.price); } }
-        for e in offers { if e.size > 0.0 { all_prices.push(e.price); } }
+        for e in bids {
+            if e.size > 0.0 {
+                all_prices.push(e.price);
+            }
+        }
+        for e in offers {
+            if e.size > 0.0 {
+                all_prices.push(e.price);
+            }
+        }
 
         if all_prices.is_empty() {
             return Vec::new();
@@ -192,8 +200,8 @@ impl Render for DomView {
         }
 
         // Calculate row height dynamically based on window and number of levels
-        // DOM area = viewport - (title bar ~30 + tab bar ~32 + header ~26 + footer ~26 + status ~28)
-        let dom_area_h = (viewport_h - 142.0).max(200.0);
+        // DOM area = viewport - (title bar ~30 + tab bar ~32 + header ~26 + footer ~26 + status ~28 + totals footer ~30)
+        let dom_area_h = (viewport_h - 170.0).max(200.0);
         let num_levels = ladder.len() as f32;
         let row_h = (dom_area_h / num_levels).max(16.0).min(32.0); // Clamp between 16-32px
 
@@ -351,7 +359,7 @@ impl Render for DomView {
                                                 .text_sm()
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(if *bid_size > 0.0 {
-                                                    bid_color
+                                                    gpui::white()
                                                 } else {
                                                     Hsla {
                                                         h: 0.0,
@@ -465,7 +473,7 @@ impl Render for DomView {
                                                 .text_sm()
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(if *ask_size > 0.0 {
-                                                    ask_color
+                                                    gpui::white()
                                                 } else {
                                                     Hsla {
                                                         h: 0.0,
@@ -505,26 +513,24 @@ impl Render for DomView {
                             .text_color(bid_label)
                             .child(format!("{}", total_bids)),
                     )
-                    .child(
-                        div()
-                            .w(px(price_col_w))
-                            .flex()
-                            .justify_center()
-                            .child({
-                                let total = (total_bids + total_asks) as f64;
-                                if total > 0.0 {
-                                    let imb = ((total_bids as f64 - total_asks as f64) / total) * 100.0;
-                                    let imb_color = if imb > 0.0 { bid_label } else if imb < 0.0 { ask_label } else { cx.theme().muted_foreground };
-                                    div()
-                                        .text_color(imb_color)
-                                        .child(format!("{:.1}%", imb.abs()))
-                                } else {
-                                    div()
-                                        .text_color(cx.theme().muted_foreground)
-                                        .child("0%")
-                                }
-                            })
-                    )
+                    .child(div().w(px(price_col_w)).flex().justify_center().child({
+                        let total = (total_bids + total_asks) as f64;
+                        if total > 0.0 {
+                            let imb = ((total_bids as f64 - total_asks as f64) / total) * 100.0;
+                            let imb_color = if imb > 0.0 {
+                                bid_label
+                            } else if imb < 0.0 {
+                                ask_label
+                            } else {
+                                cx.theme().muted_foreground
+                            };
+                            div()
+                                .text_color(imb_color)
+                                .child(format!("{:.1}%", imb.abs()))
+                        } else {
+                            div().text_color(cx.theme().muted_foreground).child("0%")
+                        }
+                    }))
                     .child(
                         div()
                             .w(px(bar_col_w))
