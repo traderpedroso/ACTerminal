@@ -1,3 +1,4 @@
+pub mod dom_utils;
 pub mod dom_view;
 pub mod dto;
 pub mod process_table;

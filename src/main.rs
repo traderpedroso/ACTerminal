@@ -7,6 +7,7 @@ mod ui;
 
 use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData};
 use ui::{
+    dom_utils,
     DomView, ProcessTableDelegate, QuotesView, StatusBarData,
     TimesAndSalesEntry, TimesAndSalesView, UiDomData, UiQuoteData, UiTickData, render_status_bar,
 };
@@ -322,11 +323,12 @@ impl SystemMonitor {
                             DataType::Tick => {
                                 if let Ok(ticks) = serde_json::from_str::<Vec<TickData>>(&json) {
                                     for td in ticks {
-                                        let ui_tick = UiTickData::from_tick_data(&td, &symbol);
+                                        let mut ui_tick = UiTickData::from_tick_data(&td, &symbol);
+                                        ui_tick = dom_utils::invert_tick_data(&ui_tick, &symbol);
                                         let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
-                                        let price = td.price;
-                                        let bid_price = td.bid_price;
-                                        let ask_price = td.ask_price;
+                                        let price = ui_tick.price;
+                                        let bid_price = ui_tick.bid_price;
+                                        let ask_price = ui_tick.ask_price;
                                         ts_entity.update(cx, |view, cx| {
                                             view.push(entry);
                                             cx.notify();
@@ -341,16 +343,18 @@ impl SystemMonitor {
                             }
                             DataType::Dom => {
                                 if let Ok(dom) = serde_json::from_str::<DomData>(&json) {
-                                    let ui_dom = UiDomData::from(dom);
+                                    let mut ui_dom = UiDomData::from(dom);
+                                    ui_dom = dom_utils::invert_dom_data(&ui_dom, &symbol);
                                     dom_entity.update(cx, |view, cx| {
-                                        view.update_dom(ui_dom);
+                                        view.update_dom(ui_dom, &symbol);
                                         cx.notify();
                                     });
                                 }
                             }
                             DataType::Quote => {
                                 if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
-                                    let ui_quote = UiQuoteData::from(quote);
+                                    let mut ui_quote = UiQuoteData::from(quote);
+                                    ui_quote = dom_utils::invert_quote_data(&ui_quote, &symbol);
                                     quotes_entity.update(cx, |view, cx| {
                                         view.update_quote(ui_quote);
                                         cx.notify();

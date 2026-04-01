@@ -2,17 +2,15 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::*;
 use gpui_component::{h_flex, v_flex, ActiveTheme};
 
+use crate::ui::dom_utils;
 use crate::ui::dto::UiDomData;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Fixed tick size: currency futures are spaced 0.00005 apart.
-const TICK_SIZE: f64 = 0.00005;
-
-/// Minimum levels to show on each side (bid/ask)
-const MIN_LEVELS_PER_SIDE: usize = 5;
+/// Default tick size fallback
+const DEFAULT_TICK_SIZE: f64 = 0.00005;
 
 /// Estimated height of UI chrome above/below the DOM body:
 ///   macOS title bar ~30 + tab bar ~32 + DOM header ~26 + DOM footer ~26
@@ -27,6 +25,9 @@ pub struct DomView {
     pub current_price: Option<f64>,
     pub tick_bid_price: Option<f64>,
     pub tick_ask_price: Option<f64>,
+    pub symbol: Option<String>,
+    pub tick_size: f64,
+    pub decimals: usize,
 }
 
 impl DomView {
@@ -36,6 +37,9 @@ impl DomView {
             current_price: None,
             tick_bid_price: None,
             tick_ask_price: None,
+            symbol: None,
+            tick_size: DEFAULT_TICK_SIZE,
+            decimals: 5,
         }
     }
 
@@ -44,9 +48,16 @@ impl DomView {
         self.current_price = None;
         self.tick_bid_price = None;
         self.tick_ask_price = None;
+        self.symbol = None;
+        self.tick_size = DEFAULT_TICK_SIZE;
+        self.decimals = 5;
     }
 
-    pub fn update_dom(&mut self, data: UiDomData) {
+    pub fn update_dom(&mut self, data: UiDomData, symbol: &str) {
+        let prices = dom_utils::collect_all_prices(&data);
+        self.tick_size = dom_utils::calculate_tick_size(&prices);
+        self.decimals = dom_utils::calculate_decimals(self.tick_size);
+        self.symbol = Some(symbol.to_string());
         self.data = Some(data);
     }
 
@@ -79,18 +90,19 @@ impl DomView {
         }
     }
 
-    /// Format price to a fixed-decimal string — trailing zeros are preserved.
-    fn fmt_price(tick: i64) -> String {
-        let price = tick as f64 * TICK_SIZE;
-        format!("{:.5}", price)
+    /// Format price using dynamic tick size and decimals
+    fn fmt_price(&self, tick: i64) -> String {
+        let price = tick as f64 * self.tick_size;
+        format!("{:.width$}", price, width = self.decimals)
     }
 
     // ── Ladder builder ────────────────────────────────────────────────────────
 
-    fn build_ladder(dom: &UiDomData) -> Vec<(String, f64, f64, i64)> {
+    fn build_ladder(&self, dom: &UiDomData) -> Vec<(String, f64, f64, i64)> {
         use std::collections::BTreeMap;
 
-        let to_tick = |p: f64| -> i64 { (p / TICK_SIZE).round() as i64 };
+        let tick_size = self.tick_size;
+        let to_tick = move |p: f64| -> i64 { (p / tick_size).round() as i64 };
 
         let mut bid_map: BTreeMap<i64, f64> = BTreeMap::new();
         let mut ask_map: BTreeMap<i64, f64> = BTreeMap::new();
@@ -112,22 +124,23 @@ impl DomView {
 
         let best_bid = bid_map.keys().copied().max().unwrap_or(0);
         let best_ask = ask_map.keys().copied().min().unwrap_or(best_bid + 1);
-        let lo_bid = bid_map.keys().copied().min().unwrap_or(best_bid);
-        let hi_ask = ask_map.keys().copied().max().unwrap_or(best_ask);
 
-        // Ensure at least MIN_LEVELS_PER_SIDE on each side with padding simulation
-        let lo_bid_with_padding = lo_bid - MIN_LEVELS_PER_SIDE as i64;
-        let hi_ask_with_padding = hi_ask + MIN_LEVELS_PER_SIDE as i64;
+        // Calculate center tick (midpoint between best bid and best ask)
+        let center_tick = (best_bid + best_ask) / 2;
 
-        let range_bottom = lo_bid_with_padding;
-        let range_top = hi_ask_with_padding;
+        // Build range centered around spread to get exactly TOTAL_ROWS lines
+        let total_rows: i64 = 30;
+        let half_range = total_rows / 2;
+
+        let range_bottom = center_tick - half_range;
+        let range_top = center_tick + half_range;
 
         let mut rows = Vec::new();
         let mut tick = range_top;
         while tick >= range_bottom {
             let bid = bid_map.get(&tick).copied().unwrap_or(0.0);
             let ask = ask_map.get(&tick).copied().unwrap_or(0.0);
-            rows.push((Self::fmt_price(tick), bid, ask, tick));
+            rows.push((self.fmt_price(tick), bid, ask, tick));
             tick -= 1;
         }
         rows
@@ -154,7 +167,8 @@ impl Render for DomView {
         let current_price = self.current_price;
         let best_bid = self.tick_bid_price;
         let best_ask = self.tick_ask_price;
-        let to_tick = |p: f64| -> i64 { (p / TICK_SIZE).round() as i64 };
+        let tick_size = self.tick_size;
+        let to_tick = move |p: f64| -> i64 { (p / tick_size).round() as i64 };
 
         // ── Empty state ───────────────────────────────────────────────────────
         let Some(ref dom) = self.data else {
@@ -171,7 +185,7 @@ impl Render for DomView {
                 .into_any_element();
         };
 
-        let ladder = Self::build_ladder(dom);
+        let ladder = self.build_ladder(dom);
         if ladder.is_empty() {
             return v_flex()
                 .size_full()
@@ -286,7 +300,7 @@ impl Render for DomView {
                         v_flex()
                             .w_full()
                             .h_full()
-                            .justify_start() // top anchored to header, bottom to footer
+                            .justify_center() // keep spread centered
                             .children(ladder.iter().map(
                                 |(price_str, bid_size, ask_size, row_tick)| {
                                     let row_tick = *row_tick;
