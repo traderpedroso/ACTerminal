@@ -124,6 +124,11 @@ pub fn get_available_symbols() -> Vec<SymbolConfig> {
             SymbolDataType::Dom,
             SymbolDataType::Quote,
         ]),
+        SymbolConfig::new("6M").with_types(vec![
+            SymbolDataType::Tick,
+            SymbolDataType::Dom,
+            SymbolDataType::Quote,
+        ]),
         SymbolConfig::new("6N").with_types(vec![
             SymbolDataType::Tick,
             SymbolDataType::Dom,
