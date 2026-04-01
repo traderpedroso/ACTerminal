@@ -5,10 +5,14 @@ use tokio::sync::RwLock;
 mod datafeed;
 mod ui;
 
-use datafeed::{create_provider, DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData, transform_dom, transform_quote, transform_tick, get_display_name, get_symbol_from_display};
+use datafeed::{
+    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData,
+    create_provider, get_display_name, get_symbol_from_display, transform_dom, transform_quote,
+    transform_tick,
+};
 use ui::{
-    DomView, ProcessTableDelegate, QuotesView, StatusBarData,
-    TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
+    DomView, ProcessTableDelegate, QuotesView, StatusBarData, TimesAndSalesEntry,
+    TimesAndSalesView, render_status_bar,
 };
 
 use std::time::Duration;
@@ -233,7 +237,6 @@ impl SystemMonitor {
                     let new_sym_str = get_symbol_from_display(display_name.as_ref()).to_string();
                     let old_symbol = this.current_symbol.blocking_read().clone();
                     if old_symbol != new_sym_str {
-
                         *this.current_symbol.blocking_write() = new_sym_str.clone();
 
                         let symbol_manager = symbol_manager.clone();
@@ -345,16 +348,18 @@ impl SystemMonitor {
                             DataType::Quote => {
                                 if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
                                     let ui_quote = transform_quote(&quote, &symbol);
-                                    
+
                                     // Update quotes view (OPEN, HIGH, LOW, RANGE)
                                     quotes_entity.update(cx, |view, cx| {
                                         view.update_quote(ui_quote.clone());
                                         cx.notify();
                                     });
-                                    
+
                                     // Update DOM: best bid/ask from Quote (faster than Tick)
                                     dom_entity.update(cx, |view, cx| {
-                                        if let (Some(bid), Some(ask)) = (ui_quote.bid_price, ui_quote.ask_price) {
+                                        if let (Some(bid), Some(ask)) =
+                                            (ui_quote.bid_price, ui_quote.ask_price)
+                                        {
                                             view.update_tick_prices(bid, ask);
                                         }
                                         view.update_show_last_trade(ui_quote.last_price);
@@ -592,12 +597,10 @@ impl SystemMonitor {
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(cx.theme().foreground)
                                     .child("Times & Sales")
-                                    .child(
-                                        Select::new(&select_entity).small().w(px(100.)),
-                                    ),
+                                    .child(Select::new(&select_entity).small().w(px(100.))),
                             )
                             .child(div().flex_1().child(self.times_and_sales.clone())),
-                    )
+                    ),
             )
     }
 }
