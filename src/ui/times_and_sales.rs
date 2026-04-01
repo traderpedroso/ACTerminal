@@ -4,7 +4,6 @@ use gpui::{linear_color_stop, linear_gradient, *};
 use gpui_component::{h_flex, v_flex, ActiveTheme};
 
 use crate::datafeed::TradeSide;
-use crate::ui::dto::UiTickData;
 
 /// Maximum number of rows kept in memory.
 const MAX_ROWS: usize = 500;
@@ -25,18 +24,22 @@ pub struct TimesAndSalesEntry {
     /// Trade side as determined by the tick processor.
     pub side: TradeSide,
     /// Contract symbol, e.g. "ESM5".
+    #[allow(dead_code)]
     pub symbol: String,
+    /// Number of decimal places for price formatting.
+    pub decimals: usize,
 }
 
 impl TimesAndSalesEntry {
-    /// Build from a parsed `UiTickData` + the subscription symbol.
-    pub fn from_ui_tick_data(td: &UiTickData) -> Self {
+    /// Build from a parsed `UiTickData`.
+    pub fn from_ui_tick_data(td: &crate::datafeed::dto::UiTickData) -> Self {
         Self {
             time: td.time.clone(),
             price: td.price,
             size: td.size,
             side: td.side,
             symbol: td.symbol.clone(),
+            decimals: td.decimals,
         }
     }
 }
@@ -48,29 +51,22 @@ impl TimesAndSalesEntry {
 /// GPUI entity that owns the Times & Sales buffer.
 pub struct TimesAndSalesView {
     rows: VecDeque<TimesAndSalesEntry>,
-    /// Symbol currently being shown (for the header).
-    pub symbol: String,
 }
 
 impl TimesAndSalesView {
     pub fn new() -> Self {
         Self {
             rows: VecDeque::with_capacity(MAX_ROWS),
-            symbol: String::new(),
         }
     }
 
     /// Clear the internal buffer (e.g. when subscription changes).
     pub fn clear(&mut self) {
         self.rows.clear();
-        self.symbol.clear();
     }
 
     /// Push a new trade entry, evicting the oldest if needed.
     pub fn push(&mut self, entry: TimesAndSalesEntry) {
-        if !entry.symbol.is_empty() {
-            self.symbol = entry.symbol.clone();
-        }
         if self.rows.len() >= MAX_ROWS {
             self.rows.pop_back();
         }
@@ -149,6 +145,12 @@ impl TimesAndSalesView {
                 .text_xs(),
         };
 
+        let price_str = match entry.decimals {
+            2 => format!("{:.2}", entry.price),
+            3 => format!("{:.3}", entry.price),
+            _ => format!("{:.5}", entry.price),
+        };
+
         // Time gets color for market and pending
         let time_color = if is_market || is_pending {
             text
@@ -178,7 +180,7 @@ impl TimesAndSalesView {
                     } else {
                         cx.theme().foreground
                     })
-                    .child(format!("{:.5}", entry.price)),
+                    .child(price_str),
             )
             // Size
             .child(
