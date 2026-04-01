@@ -22,8 +22,6 @@ use tokio::sync::mpsc;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DataFeedBackend {
     #[default]
-    Zmq,
-    #[allow(dead_code)]
     Zenoh,
 }
 
@@ -40,7 +38,6 @@ pub trait DataFeedProvider: Send + Sync {
 
 pub fn create_provider(backend: DataFeedBackend) -> Arc<dyn DataFeedProvider> {
     match backend {
-        DataFeedBackend::Zmq => Arc::new(provider::zmq::ZmqProvider::new()),
         DataFeedBackend::Zenoh => Arc::new(provider::zenoh::ZenohProvider::new()),
     }
 }

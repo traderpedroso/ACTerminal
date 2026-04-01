@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 #[allow(unused_imports)]
@@ -6,9 +5,9 @@ mod datafeed;
 mod ui;
 
 use datafeed::{
-    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData,
-    create_provider, get_display_name, get_symbol_from_display, transform_dom, transform_quote,
-    transform_tick,
+    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData,
+    SymbolManager, TickData, create_provider, get_display_name, get_symbol_from_display,
+    transform_dom, transform_quote, transform_tick,
 };
 use ui::{
     DomView, ProcessTableDelegate, QuotesView, StatusBarData, TimesAndSalesEntry,
@@ -22,10 +21,9 @@ use gpui_component::ThemeMode;
 use gpui_component::select::{Select, SelectEvent, SelectState};
 use gpui_component::{
     ActiveTheme, Root, Sizable, Theme, TitleBar,
-    chart::AreaChart,
     h_flex,
     tab::{Tab, TabBar},
-    table::{DataTable, TableState},
+    table::TableState,
     v_flex,
 };
 use smol::Timer;
@@ -39,7 +37,6 @@ use tokio::sync::mpsc;
 actions!(icetrader, [Quit]);
 
 const INTERVAL: Duration = Duration::from_millis(500);
-const MAX_DATA_POINTS: usize = 120;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tab enum
@@ -49,30 +46,19 @@ const MAX_DATA_POINTS: usize = 120;
 enum MonitorTab {
     #[default]
     OrderFlow = 0,
-    System = 1,
-    Processes = 2,
+    Infos = 1,
+    Settings = 2,
 }
 
 impl MonitorTab {
     fn from_index(index: usize) -> Self {
         match index {
             0 => MonitorTab::OrderFlow,
-            1 => MonitorTab::System,
-            2 => MonitorTab::Processes,
+            1 => MonitorTab::Infos,
+            2 => MonitorTab::Settings,
             _ => MonitorTab::OrderFlow,
         }
     }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Internal structs (kept in main.rs — system monitor specific)
-// ──────────────────────────────────────────────────────────────────────────────
-
-#[derive(Clone)]
-struct MetricPoint {
-    time: String,
-    cpu: f64,
-    memory: f64,
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -82,8 +68,6 @@ struct MetricPoint {
 pub struct SystemMonitor {
     // ── System info ──────────────────────────────────────────────────────────
     sys: System,
-    data: VecDeque<MetricPoint>,
-    time_index: usize,
     app_cpu: f64,
     app_memory: u64,
 
@@ -141,7 +125,7 @@ impl SystemMonitor {
         let symbol_manager = Arc::new(SymbolManager::new(change_tx));
 
         // ── Start datafeed subscriber ─────────────────────────────────────────
-        let subscriber = create_provider(DataFeedBackend::Zmq);
+        let subscriber = create_provider(DataFeedBackend::Zenoh);
 
         // Subscribe to initial symbol
         subscriber.subscribe("6E", DataType::Tick);
@@ -209,8 +193,6 @@ impl SystemMonitor {
 
         let mut monitor = Self {
             sys,
-            data: VecDeque::with_capacity(MAX_DATA_POINTS),
-            time_index: 0,
             app_cpu: 0.0,
             app_memory: 0,
             active_tab: MonitorTab::OrderFlow,
@@ -315,7 +297,7 @@ impl SystemMonitor {
                 // Poll for messages in a non-blocking way
                 match rx.try_recv() {
                     Ok((symbol, data_type, json)) => {
-                        // Read the current symbol from the shared Arc
+                        // Only process messages for current symbol
                         let current = current_symbol.read().await;
 
                         // Only process messages for current symbol
@@ -400,27 +382,6 @@ impl SystemMonitor {
             }
         }
 
-        let cpu_usage = self.sys.global_cpu_usage() as f64;
-        let total_memory = self.sys.total_memory() as f64;
-        let used_memory = self.sys.used_memory() as f64;
-        let memory_usage = if total_memory > 0.0 {
-            (used_memory / total_memory * 100.0).min(100.0)
-        } else {
-            0.0
-        };
-
-        let point = MetricPoint {
-            time: format!("{}s", self.time_index),
-            cpu: cpu_usage,
-            memory: memory_usage,
-        };
-
-        if self.data.len() >= MAX_DATA_POINTS {
-            self.data.pop_front();
-        }
-        self.data.push_back(point);
-        self.time_index += 1;
-
         self.process_table.update(cx, |table, cx| {
             table.delegate_mut().update_processes(&self.sys);
             cx.notify();
@@ -441,82 +402,6 @@ impl SystemMonitor {
                 app_memory: self.app_memory,
             },
             cx,
-        )
-    }
-
-    // ── System tab ────────────────────────────────────────────────────────────
-
-    fn render_chart(
-        &self,
-        title: &str,
-        data: Vec<MetricPoint>,
-        value_fn: impl Fn(&MetricPoint) -> f64 + 'static,
-        color: Hsla,
-        cx: &Context<Self>,
-    ) -> impl IntoElement {
-        v_flex()
-            .min_h(px(160.))
-            .flex_1()
-            .gap_2()
-            .border_1()
-            .border_color(cx.theme().border)
-            .child(
-                h_flex()
-                    .justify_between()
-                    .py_1()
-                    .px_3()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().foreground)
-                            .child(title.to_string()),
-                    )
-                    .child({
-                        let current_value = data.last().map(&value_fn).unwrap_or(0.0);
-                        div()
-                            .text_sm()
-                            .text_color(color)
-                            .child(format!("{:.1}%", current_value))
-                    }),
-            )
-            .child(
-                AreaChart::new(data)
-                    .x(|d| d.time.clone())
-                    .y(value_fn)
-                    .stroke(color)
-                    .fill(linear_gradient(
-                        0.,
-                        linear_color_stop(color.opacity(0.4), 1.),
-                        linear_color_stop(cx.theme().background.opacity(0.1), 0.),
-                    ))
-                    .tick_margin(15),
-            )
-    }
-
-    fn render_system_tab(&self, cx: &Context<Self>) -> impl IntoElement {
-        let data: Vec<MetricPoint> = self.data.iter().cloned().collect();
-        v_flex()
-            .p_3()
-            .gap_4()
-            .flex_1()
-            // CPU in red
-            .child(self.render_chart("CPU Usage", data.clone(), |d| d.cpu, cx.theme().red, cx))
-            // Memory in blue (was green)
-            .child(self.render_chart(
-                "Memory Usage",
-                data.clone(),
-                |d| d.memory,
-                cx.theme().blue,
-                cx,
-            ))
-    }
-
-    fn render_processes_tab(&self, _cx: &Context<Self>) -> impl IntoElement {
-        v_flex().size_full().child(
-            DataTable::new(&self.process_table)
-                .bordered(false)
-                .stripe(true)
-                .small(),
         )
     }
 
@@ -629,8 +514,8 @@ impl Render for SystemMonitor {
                                 this.set_active_tab(*ix, window, cx);
                             }))
                             .child(Tab::new().label("OrderFlow"))
-                            .child(Tab::new().label("System"))
-                            .child(Tab::new().label("Processes")),
+                            .child(Tab::new().label("Infos"))
+                            .child(Tab::new().label("Settings")),
                     )
                     .child(
                         div()
@@ -648,8 +533,8 @@ impl Render for SystemMonitor {
                     .overflow_y_scroll()
                     .map(|this| match self.active_tab {
                         MonitorTab::OrderFlow => this.child(self.render_orderflow_tab(window, cx)),
-                        MonitorTab::System => this.child(self.render_system_tab(cx)),
-                        MonitorTab::Processes => this.child(self.render_processes_tab(cx)),
+                        MonitorTab::Infos => this.child(div()),
+                        MonitorTab::Settings => this.child(div()),
                     }),
             )
             // Status bar present on ALL tabs

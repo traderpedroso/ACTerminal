@@ -10,9 +10,9 @@ pub enum DataType {
 impl DataType {
     pub fn prefix(&self) -> &'static str {
         match self {
-            DataType::Tick => "ticks.",
-            DataType::Dom => "doms.",
-            DataType::Quote => "quotes.",
+            DataType::Tick => "ticks/",
+            DataType::Dom => "doms/",
+            DataType::Quote => "quotes/",
         }
     }
 }
@@ -119,6 +119,7 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct DomMessage {
     #[serde(rename = "doms")]
     pub doms: Vec<DomData>,
@@ -173,6 +174,7 @@ pub struct QuoteData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct QuoteMessage {
     #[serde(rename = "quotes")]
     pub quotes: Vec<QuoteData>,
