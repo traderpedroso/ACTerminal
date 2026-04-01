@@ -10,7 +10,6 @@ use crate::datafeed::dto::UiDomData;
 
 pub struct DomView {
     pub data: Option<UiDomData>,
-    pub current_price: Option<f64>,
     pub tick_bid_price: Option<f64>,
     pub tick_ask_price: Option<f64>,
     // Last trade price from Quote - only updates when value changes
@@ -25,7 +24,6 @@ impl DomView {
     pub fn new() -> Self {
         Self {
             data: None,
-            current_price: None,
             tick_bid_price: None,
             tick_ask_price: None,
             show_last_trade: None,
@@ -37,7 +35,6 @@ impl DomView {
 
     pub fn clear(&mut self) {
         self.data = None;
-        self.current_price = None;
         self.tick_bid_price = None;
         self.tick_ask_price = None;
         self.show_last_trade = None;
@@ -50,21 +47,19 @@ impl DomView {
         self.data = Some(data);
     }
 
-    pub fn update_price(&mut self, price: f64) {
-        self.current_price = Some(price);
-    }
-
     pub fn update_tick_prices(&mut self, bid_price: f64, ask_price: f64) {
         self.tick_bid_price = Some(bid_price);
         self.tick_ask_price = Some(ask_price);
     }
 
     pub fn update_show_last_trade(&mut self, price: Option<f64>) {
-        // Only update if value actually changed
-        if price != self.prev_last_trade {
+        // Only update when there's a new trade price
+        // Never clear to None - keep last known trade price visible
+        if let Some(new_price) = price {
             self.prev_last_trade = self.show_last_trade;
-            self.show_last_trade = price;
+            self.show_last_trade = Some(new_price);
         }
+        // If price is None, do nothing - keep the previous value visible
     }
 
     // ── Colour helpers ────────────────────────────────────────────────────────
@@ -296,8 +291,8 @@ impl Render for DomView {
                     .overflow_y_scroll()
                     .child(v_flex().w_full().children(ladder.iter().map(
                         |(price_str, bid_size, ask_size, is_best_bid, is_best_ask)| {
-                            // Bid column color: best bid gets blue
-                            let bid_color = if *is_best_bid {
+                            // Colors are defined but used elsewhere (price column coloring)
+                            let _bid_color = if *is_best_bid {
                                 Hsla {
                                     h: 210.0 / 360.0,
                                     s: 0.85,
@@ -308,8 +303,7 @@ impl Render for DomView {
                                 gpui::white()
                             };
 
-                            // Ask column color: best ask gets red
-                            let ask_color = if *is_best_ask {
+                            let _ask_color = if *is_best_ask {
                                 Hsla {
                                     h: 0.0 / 360.0,
                                     s: 0.90,

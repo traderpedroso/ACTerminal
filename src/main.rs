@@ -326,16 +326,8 @@ impl SystemMonitor {
                                     for td in ticks {
                                         let ui_tick = transform_tick(&td, &symbol);
                                         let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
-                                        let price = ui_tick.price;
-                                        let bid_price = ui_tick.bid_price;
-                                        let ask_price = ui_tick.ask_price;
                                         ts_entity.update(cx, |view, cx| {
                                             view.push(entry);
-                                            cx.notify();
-                                        });
-                                        dom_entity.update(cx, |view, cx| {
-                                            view.update_price(price);
-                                            view.update_tick_prices(bid_price, ask_price);
                                             cx.notify();
                                         });
                                     }
@@ -353,14 +345,19 @@ impl SystemMonitor {
                             DataType::Quote => {
                                 if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
                                     let ui_quote = transform_quote(&quote, &symbol);
-                                    let last_price = ui_quote.last_price;
+                                    
+                                    // Update quotes view (OPEN, HIGH, LOW, RANGE)
                                     quotes_entity.update(cx, |view, cx| {
-                                        view.update_quote(ui_quote);
+                                        view.update_quote(ui_quote.clone());
                                         cx.notify();
                                     });
-                                    // Also update DOM with last trade price for yellow brackets
+                                    
+                                    // Update DOM: best bid/ask from Quote (faster than Tick)
                                     dom_entity.update(cx, |view, cx| {
-                                        view.update_show_last_trade(last_price);
+                                        if let (Some(bid), Some(ask)) = (ui_quote.bid_price, ui_quote.ask_price) {
+                                            view.update_tick_prices(bid, ask);
+                                        }
+                                        view.update_show_last_trade(ui_quote.last_price);
                                         cx.notify();
                                     });
                                 }
