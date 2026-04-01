@@ -634,10 +634,7 @@ impl Render for SystemMonitor {
                             .mr_4()
                             .text_xs()
                             .text_color(cx.theme().muted_foreground)
-                            .child(format!(
-                                "{:.1} GB",
-                                self.sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0
-                            )),
+                            .child(format!("v{}", env!("CARGO_PKG_VERSION"))),
                     ),
             )
             .bg(cx.theme().background)
