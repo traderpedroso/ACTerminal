@@ -3,6 +3,7 @@ use tokio::sync::RwLock;
 #[allow(unused_imports)]
 mod datafeed;
 mod ui;
+mod domains;
 
 use datafeed::{
     DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData,
@@ -10,9 +11,10 @@ use datafeed::{
     transform_tick,
 };
 use ui::{
-    DomView, ProcessTableDelegate, QuotesView, StatusBarData, TimesAndSalesEntry,
-    TimesAndSalesView, render_status_bar,
+    DomView, ProcessTableDelegate, QuotesView, StatusBarData,
+    TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
 };
+use domains::system_monitoring::SystemMetrics;
 
 use std::time::Duration;
 
@@ -65,10 +67,9 @@ impl MonitorTab {
 // ──────────────────────────────────────────────────────────────────────────────
 
 pub struct SystemMonitor {
-    // ── System info ──────────────────────────────────────────────────────────
+    // ── Domain: System Monitoring ────────────────────────────────────────────────
+    system_metrics: SystemMetrics,
     sys: System,
-    app_cpu: f64,
-    app_memory: u64,
 
     // ── Tab state ─────────────────────────────────────────────────────────────
     active_tab: MonitorTab,
@@ -191,9 +192,8 @@ impl SystemMonitor {
             .detach();
 
         let mut monitor = Self {
+            system_metrics: SystemMetrics::new("acterminal"),
             sys,
-            app_cpu: 0.0,
-            app_memory: 0,
             active_tab: MonitorTab::OrderFlow,
             process_table,
             times_and_sales: times_and_sales.clone(),
@@ -370,16 +370,7 @@ impl SystemMonitor {
             RefreshKind::everything().with_processes(ProcessRefreshKind::everything()),
         );
 
-        self.app_cpu = 0.0;
-        self.app_memory = 0;
-        for process in self.sys.processes().values() {
-            let name = process.name().to_string_lossy().to_lowercase();
-            if name.contains("acterminal") {
-                self.app_cpu = process.cpu_usage() as f64;
-                self.app_memory = process.memory();
-                break;
-            }
-        }
+        self.system_metrics.collect(&self.sys);
 
         self.process_table.update(cx, |table, cx| {
             table.delegate_mut().update_processes(&self.sys);
@@ -397,8 +388,8 @@ impl SystemMonitor {
     fn render_status_bar_view(&self, cx: &Context<Self>) -> impl IntoElement {
         render_status_bar(
             StatusBarData {
-                app_cpu: self.app_cpu,
-                app_memory: self.app_memory,
+                app_cpu: self.system_metrics.cpu(),
+                app_memory: self.system_metrics.memory(),
             },
             cx,
         )
