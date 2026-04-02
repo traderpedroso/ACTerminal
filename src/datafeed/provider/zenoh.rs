@@ -10,6 +10,14 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use zenoh::config::Config;
 
+#[allow(clippy::let_underscore_future)]
+// Rationale: Zenoh requires an async runtime for its connection. We spawn a dedicated
+// thread with its own Tokio runtime because:
+// 1. Zenoh operations are async and require an executor
+// 2. Running in a separate thread avoids blocking the main UI thread
+// 3. The runtime is managed within this thread and properly shutdown via the
+//    shutdown channel, so there's no leak of async contexts.
+
 static LAST_PRICE_TICKS: AtomicI64 = AtomicI64::new(0);
 static LAST_BID_TICKS: AtomicI64 = AtomicI64::new(0);
 static LAST_ASK_TICKS: AtomicI64 = AtomicI64::new(0);
@@ -42,7 +50,9 @@ impl ZenohProvider {
         
         // Send cancellation signal to the subscriber task
         if let Some(cancel_tx) = self.cancel_txs.lock().ok().and_then(|mut g| g.remove(&key)) {
+            // Use explicit drop to satisfy clippy - send is sync so this is safe
             let _ = cancel_tx.send(());
+            drop(cancel_tx);
         }
         
         if let Ok(mut guard) = self.subscriptions.lock() {
@@ -124,6 +134,7 @@ impl ZenohProvider {
                             // Send cancel signal
                             if let Some(cancel_tx) = cancel_txs.lock().ok().and_then(|mut g| g.remove(key)) {
                                 let _ = cancel_tx.send(());
+                                drop(cancel_tx);
                             }
                             if let Ok(mut active) = active_subscribers.lock() {
                                 active.remove(key);
@@ -233,6 +244,7 @@ impl ZenohProvider {
                             for key in &keys {
                                 if let Some(cancel_tx) = cancel_txs.lock().ok().and_then(|mut g| g.remove(key)) {
                                     let _ = cancel_tx.send(());
+                                    drop(cancel_tx);
                                 }
                             }
                             break;

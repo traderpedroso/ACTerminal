@@ -198,7 +198,7 @@ impl Render for DomView {
         // DOM area = viewport - (title bar ~30 + tab bar ~32 + header ~26 + footer ~26 + status ~28 + totals footer ~30)
         let dom_area_h = (viewport_h - 170.0).max(200.0);
         let num_levels = ladder.len() as f32;
-        let row_h = (dom_area_h / num_levels).max(16.0).min(32.0); // Clamp between 16-32px
+        let row_h = (dom_area_h / num_levels).clamp(16.0, 32.0);
 
         // ── Column widths ───────────────────────────────────────────────────────
         let bar_col_w: f32 = 80.0;
