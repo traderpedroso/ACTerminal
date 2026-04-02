@@ -3,7 +3,6 @@ use gpui::*;
 use gpui_component::{h_flex, v_flex, ActiveTheme};
 
 use crate::datafeed::dto::UiDomData;
-use crate::domains::trading_display::views::dom::DomViewState;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DOM Ladder View
@@ -19,13 +18,10 @@ pub struct DomView {
     pub prev_last_trade: Option<f64>,
     pub prev_best_bid: Option<f64>,
     pub prev_best_ask: Option<f64>,
-    // Domain state for future decoupling
-    #[allow(dead_code)]
-    state: Option<DomViewState>,
 }
 
 impl DomView {
-    pub fn new(state: Option<DomViewState>) -> Self {
+    pub fn new() -> Self {
         Self {
             data: None,
             tick_bid_price: None,
@@ -34,7 +30,6 @@ impl DomView {
             prev_last_trade: None,
             prev_best_bid: None,
             prev_best_ask: None,
-            state,
         }
     }
 

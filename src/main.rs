@@ -14,10 +14,8 @@ use ui::{
     DomView, ProcessTableDelegate, QuotesView, StatusBarData,
     TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
 };
+use domains::market_data::MarketDataState;
 use domains::system_monitoring::SystemMetrics;
-use domains::trading_display::views::{
-    dom::DomViewState, quotes::QuotesViewState, times_and_sales::TimesAndSalesViewState,
-};
 
 use std::time::Duration;
 
@@ -72,6 +70,9 @@ impl MonitorTab {
 // ──────────────────────────────────────────────────────────────────────────────
 
 pub struct SystemMonitor {
+    // ── Domain: Market Data ────────────────────────────────────────────────────────
+    market_data: MarketDataState,
+
     // ── Domain: System Monitoring ────────────────────────────────────────────────
     system_metrics: SystemMetrics,
     sys: System,
@@ -106,18 +107,9 @@ impl SystemMonitor {
                 .col_movable(false)
         });
 
-        let times_and_sales = cx.new(|_| {
-            let state = TimesAndSalesViewState::new(MAX_ROWS);
-            TimesAndSalesView::new(Some(state))
-        });
-        let dom_view = cx.new(|_| {
-            let state = DomViewState::new();
-            DomView::new(Some(state))
-        });
-        let quotes_view = cx.new(|_| {
-            let state = QuotesViewState::new();
-            QuotesView::new(Some(state))
-        });
+        let times_and_sales = cx.new(|_| TimesAndSalesView::new());
+        let dom_view = cx.new(|_| DomView::new());
+        let quotes_view = cx.new(|_| QuotesView::new());
 
         // Map CME codes → display names for the dropdown
         let available_symbols = datafeed::get_available_symbols()
@@ -137,6 +129,9 @@ impl SystemMonitor {
         // ── Setup Symbol Manager ──────────────────────────────────────────────
         let (change_tx, mut change_rx) = tokio::sync::mpsc::channel(100);
         let symbol_manager = Arc::new(SymbolManager::new(change_tx));
+
+        // ── Setup Market Data Domain State ─────────────────────────────────────
+        let market_data = MarketDataState::new(initial_symbol);
 
         // ── Start datafeed subscriber ─────────────────────────────────────────
         let subscriber = create_provider(DataFeedBackend::Zenoh);
@@ -206,6 +201,7 @@ impl SystemMonitor {
             .detach();
 
         let mut monitor = Self {
+            market_data: market_data.clone(),
             system_metrics: SystemMetrics::new("acterminal"),
             sys,
             active_tab: MonitorTab::OrderFlow,
@@ -304,6 +300,7 @@ impl SystemMonitor {
         let dom_entity = self.dom_view.clone();
         let quotes_entity = self.quotes_view.clone();
         let current_symbol = self.current_symbol.clone();
+        let market_data = self.market_data.clone();
 
         cx.spawn(async move |_this, cx| {
             loop {
@@ -321,6 +318,11 @@ impl SystemMonitor {
                         match data_type {
                             DataType::Tick => {
                                 if let Ok(ticks) = serde_json::from_str::<Vec<TickData>>(&json) {
+                                    // Update domain state first
+                                    for td in ticks.clone() {
+                                        market_data.update_tick(td).await;
+                                    }
+                                    // Then update UI
                                     for td in ticks {
                                         let ui_tick = transform_tick(&td, &symbol);
                                         let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
@@ -333,6 +335,9 @@ impl SystemMonitor {
                             }
                             DataType::Dom => {
                                 if let Ok(dom) = serde_json::from_str::<DomData>(&json) {
+                                    // Update domain state first
+                                    market_data.update_dom(dom.clone()).await;
+                                    // Then update UI
                                     let ui_dom = transform_dom(&dom, &symbol);
                                     dom_entity.update(cx, |view, cx| {
                                         view.update_dom(ui_dom);
@@ -342,6 +347,9 @@ impl SystemMonitor {
                             }
                             DataType::Quote => {
                                 if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
+                                    // Update domain state first
+                                    market_data.update_quote(quote.clone()).await;
+                                    // Then update UI
                                     let ui_quote = transform_quote(&quote, &symbol);
 
                                     // Update quotes view (OPEN, HIGH, LOW, RANGE)
