@@ -1,7 +1,7 @@
 use gpui::Hsla;
 
 // ──────────────────────────────────────────────────────────────────────────────
-// IceTrader colour palette for trade side signals
+// acterminal colour palette for trade side signals
 // ──────────────────────────────────────────────────────────────────────────────
 
 /// Strong blue gradient start for BUY_MARKET trades (like chart fill).

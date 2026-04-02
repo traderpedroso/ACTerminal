@@ -1,5 +1,5 @@
 [package]
-name = "icetrader"
+name = "acterminal"
 description = "A real-time trading system."
 version = "0.5.0"
 publish = false
@@ -59,3 +59,8 @@ debug = true
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[package.metadata.bundle]
+name = "ACTerminal"
+identifier = "com.exemplo.acterminal"
+icon = ["assets/acterminal.icns"]

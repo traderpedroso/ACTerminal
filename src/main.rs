@@ -5,9 +5,9 @@ mod datafeed;
 mod ui;
 
 use datafeed::{
-    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData,
-    SymbolManager, TickData, create_provider, get_display_name, get_symbol_from_display,
-    transform_dom, transform_quote, transform_tick,
+    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData,
+    create_provider, get_display_name, get_symbol_from_display, transform_dom, transform_quote,
+    transform_tick,
 };
 use ui::{
     DomView, ProcessTableDelegate, QuotesView, StatusBarData, TimesAndSalesEntry,
@@ -20,8 +20,7 @@ use gpui::{actions, prelude::FluentBuilder as _, *};
 use gpui_component::ThemeMode;
 use gpui_component::select::{Select, SelectEvent, SelectState};
 use gpui_component::{
-    ActiveTheme, Root, Sizable, Theme, TitleBar,
-    h_flex,
+    ActiveTheme, Root, Sizable, Theme, TitleBar, h_flex,
     tab::{Tab, TabBar},
     table::TableState,
     v_flex,
@@ -34,7 +33,7 @@ use tokio::sync::mpsc;
 // Actions
 // ──────────────────────────────────────────────────────────────────────────────
 
-actions!(icetrader, [Quit]);
+actions!(acterminal, [Quit]);
 
 const INTERVAL: Duration = Duration::from_millis(500);
 
@@ -375,7 +374,7 @@ impl SystemMonitor {
         self.app_memory = 0;
         for process in self.sys.processes().values() {
             let name = process.name().to_string_lossy().to_lowercase();
-            if name.contains("icetrader") {
+            if name.contains("acterminal") {
                 self.app_cpu = process.cpu_usage() as f64;
                 self.app_memory = process.memory();
                 break;
