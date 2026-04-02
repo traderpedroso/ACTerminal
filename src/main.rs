@@ -15,6 +15,9 @@ use ui::{
     TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
 };
 use domains::system_monitoring::SystemMetrics;
+use domains::trading_display::views::{
+    dom::DomViewState, quotes::QuotesViewState, times_and_sales::TimesAndSalesViewState,
+};
 
 use std::time::Duration;
 
@@ -38,6 +41,8 @@ use tokio::sync::mpsc;
 actions!(acterminal, [Quit]);
 
 const INTERVAL: Duration = Duration::from_millis(500);
+
+const MAX_ROWS: usize = 500;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tab enum
@@ -101,9 +106,18 @@ impl SystemMonitor {
                 .col_movable(false)
         });
 
-        let times_and_sales = cx.new(|_| TimesAndSalesView::new());
-        let dom_view = cx.new(|_| DomView::new());
-        let quotes_view = cx.new(|_| QuotesView::new());
+        let times_and_sales = cx.new(|_| {
+            let state = TimesAndSalesViewState::new(MAX_ROWS);
+            TimesAndSalesView::new(Some(state))
+        });
+        let dom_view = cx.new(|_| {
+            let state = DomViewState::new();
+            DomView::new(Some(state))
+        });
+        let quotes_view = cx.new(|_| {
+            let state = QuotesViewState::new();
+            QuotesView::new(Some(state))
+        });
 
         // Map CME codes → display names for the dropdown
         let available_symbols = datafeed::get_available_symbols()

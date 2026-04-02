@@ -2,14 +2,17 @@ use gpui::*;
 use gpui_component::{h_flex, ActiveTheme};
 
 use crate::datafeed::dto::UiQuoteData;
+use crate::domains::trading_display::views::quotes::QuotesViewState;
 
 pub struct QuotesView {
     pub data: Option<UiQuoteData>,
+    #[allow(dead_code)]
+    state: Option<QuotesViewState>,
 }
 
 impl QuotesView {
-    pub fn new() -> Self {
-        Self { data: None }
+    pub fn new(state: Option<QuotesViewState>) -> Self {
+        Self { data: None, state }
     }
 
     pub fn clear(&mut self) {

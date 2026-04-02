@@ -4,6 +4,7 @@ use gpui::{linear_color_stop, linear_gradient, *};
 use gpui_component::{h_flex, v_flex, ActiveTheme};
 
 use crate::datafeed::TradeSide;
+use crate::domains::trading_display::views::times_and_sales::TimesAndSalesViewState;
 
 /// Maximum number of rows kept in memory.
 const MAX_ROWS: usize = 500;
@@ -51,12 +52,15 @@ impl TimesAndSalesEntry {
 /// GPUI entity that owns the Times & Sales buffer.
 pub struct TimesAndSalesView {
     rows: VecDeque<TimesAndSalesEntry>,
+    #[allow(dead_code)]
+    state: Option<TimesAndSalesViewState>,
 }
 
 impl TimesAndSalesView {
-    pub fn new() -> Self {
+    pub fn new(state: Option<TimesAndSalesViewState>) -> Self {
         Self {
             rows: VecDeque::with_capacity(MAX_ROWS),
+            state,
         }
     }
 
