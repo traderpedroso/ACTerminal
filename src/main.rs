@@ -1,23 +1,11 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
-#[allow(unused_imports)]
-mod datafeed;
-mod ui;
-mod domains;
-
-use datafeed::{
-    DataFeedBackend, DataFeedProvider, DataType, DomData, QuoteData, SymbolManager, TickData,
-    create_provider, get_display_name, get_symbol_from_display, transform_dom, transform_quote,
-    transform_tick,
-};
-use ui::{
-    DomView, ProcessTableDelegate, QuotesView, StatusBarData,
-    TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
-};
-use domains::market_data::MarketDataState;
-use domains::system_monitoring::SystemMetrics;
-
 use std::time::Duration;
+
+mod application;
+mod domain;
+mod infrastructure;
+mod presentation;
 
 use gpui::{actions, prelude::FluentBuilder as _, *};
 use gpui_component::ThemeMode;
@@ -32,19 +20,24 @@ use smol::Timer;
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tokio::sync::mpsc;
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Actions
-// ──────────────────────────────────────────────────────────────────────────────
+use crate::application::dto::{DomData, QuoteData, TickData};
+use crate::domain::market_data::MarketDataState;
+use crate::domain::system_monitoring::SystemMetrics;
+use crate::infrastructure::datafeed::{
+    DataFeedBackend, DataFeedProvider, DataType, SymbolManager,
+    create_provider, get_display_name, get_symbol_from_display, transform_dom, transform_quote,
+    transform_tick, symbols::SymbolDataType, symbols,
+};
+use crate::presentation::{
+    DomView, ProcessTableDelegate, QuotesView, StatusBarData,
+    TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
+};
 
 actions!(acterminal, [Quit]);
 
 const INTERVAL: Duration = Duration::from_millis(500);
 
 const MAX_ROWS: usize = 500;
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Tab enum
-// ──────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum MonitorTab {
@@ -65,25 +58,12 @@ impl MonitorTab {
     }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// SystemMonitor — the root GPUI entity
-// ──────────────────────────────────────────────────────────────────────────────
-
 pub struct SystemMonitor {
-    // ── Domain: Market Data ────────────────────────────────────────────────────────
     market_data: MarketDataState,
-
-    // ── Domain: System Monitoring ────────────────────────────────────────────────
     system_metrics: SystemMetrics,
     sys: System,
-
-    // ── Tab state ─────────────────────────────────────────────────────────────
     active_tab: MonitorTab,
-
-    // ── Processes tab ─────────────────────────────────────────────────────────
     process_table: Entity<TableState<ProcessTableDelegate>>,
-
-    // ── OrderFlow tab ─────────────────────────────────────────────────────────
     times_and_sales: Entity<TimesAndSalesView>,
     dom_view: Entity<DomView>,
     quotes_view: Entity<QuotesView>,
@@ -91,7 +71,6 @@ pub struct SystemMonitor {
     symbol_select: Entity<SelectState<Vec<SharedString>>>,
     current_symbol: Arc<RwLock<String>>,
     subscriber: Arc<dyn DataFeedProvider>,
-    #[allow(dead_code)]
     symbol_manager: Arc<SymbolManager>,
 }
 
@@ -111,8 +90,7 @@ impl SystemMonitor {
         let dom_view = cx.new(|_| DomView::new());
         let quotes_view = cx.new(|_| QuotesView::new());
 
-        // Map CME codes → display names for the dropdown
-        let available_symbols = datafeed::get_available_symbols()
+        let available_symbols = symbols::get_available_symbols()
             .into_iter()
             .map(|s| get_display_name(&s.name).into())
             .collect::<Vec<SharedString>>();
@@ -126,49 +104,42 @@ impl SystemMonitor {
             state.set_selected_value(&gpui::SharedString::from(initial_display), window, cx);
         });
 
-        // ── Setup Symbol Manager ──────────────────────────────────────────────
         let (change_tx, mut change_rx) = tokio::sync::mpsc::channel(100);
         let symbol_manager = Arc::new(SymbolManager::new(change_tx));
 
-        // ── Setup Market Data Domain State ─────────────────────────────────────
         let market_data = MarketDataState::new(initial_symbol);
 
-        // ── Start datafeed subscriber ─────────────────────────────────────────
         let subscriber = create_provider(DataFeedBackend::Zenoh);
 
-        // Subscribe to initial symbol
         subscriber.subscribe("6E", DataType::Tick);
         subscriber.subscribe("6E", DataType::Dom);
         subscriber.subscribe("6E", DataType::Quote);
 
         let datafeed_rx = subscriber.start();
 
-        // Spawn task to handle SymbolChangeEvents
         cx.background_executor()
             .spawn({
                 let subscriber = subscriber.clone();
                 async move {
                     while let Some(event) = change_rx.recv().await {
-                        // Unsubscribe old symbol
                         if let Some(old) = event.old_symbol {
                             for dt in &event.data_types {
                                 let mapped_dt = match dt {
-                                    datafeed::symbols::SymbolDataType::Tick => DataType::Tick,
-                                    datafeed::symbols::SymbolDataType::Dom => DataType::Dom,
-                                    datafeed::symbols::SymbolDataType::Quote => DataType::Quote,
+                                    SymbolDataType::Tick => DataType::Tick,
+                                    SymbolDataType::Dom => DataType::Dom,
+                                    SymbolDataType::Quote => DataType::Quote,
                                 };
                                 if subscriber.is_subscribed(&old, mapped_dt) {
                                     subscriber.unsubscribe(&old, mapped_dt);
                                 }
                             }
                         }
-                        // Subscribe new symbol
                         if let Some(new) = event.new_symbol {
                             for dt in &event.data_types {
                                 let mapped_dt = match dt {
-                                    datafeed::symbols::SymbolDataType::Tick => DataType::Tick,
-                                    datafeed::symbols::SymbolDataType::Dom => DataType::Dom,
-                                    datafeed::symbols::SymbolDataType::Quote => DataType::Quote,
+                                    SymbolDataType::Tick => DataType::Tick,
+                                    SymbolDataType::Dom => DataType::Dom,
+                                    SymbolDataType::Quote => DataType::Quote,
                                 };
                                 if !subscriber.is_subscribed(&new, mapped_dt) {
                                     subscriber.subscribe(&new, mapped_dt);
@@ -180,7 +151,6 @@ impl SystemMonitor {
             })
             .detach();
 
-        // Initialize symbol manager with ESM5
         cx.background_executor()
             .spawn({
                 let symbol_manager = symbol_manager.clone();
@@ -190,9 +160,9 @@ impl SystemMonitor {
                         .set_symbol(
                             &initial,
                             vec![
-                                datafeed::symbols::SymbolDataType::Tick,
-                                datafeed::symbols::SymbolDataType::Dom,
-                                datafeed::symbols::SymbolDataType::Quote,
+                                SymbolDataType::Tick,
+                                SymbolDataType::Dom,
+                                SymbolDataType::Quote,
                             ],
                         )
                         .await;
@@ -216,7 +186,6 @@ impl SystemMonitor {
             symbol_manager: symbol_manager.clone(),
         };
 
-        // ── Handle symbol change events ───────────────────────────────────────
         cx.subscribe(&symbol_select, {
             let symbol_manager = symbol_manager.clone();
             let ts_entity = times_and_sales.clone();
@@ -224,7 +193,6 @@ impl SystemMonitor {
             let quotes_entity = quotes_view.clone();
             move |this: &mut SystemMonitor, _entity, event: &SelectEvent<Vec<SharedString>>, cx| {
                 if let SelectEvent::Confirm(Some(display_name)) = event {
-                    // Map display name back to CME code
                     let new_sym_str = get_symbol_from_display(display_name.as_ref()).to_string();
                     let old_symbol = this.current_symbol.blocking_read().clone();
                     if old_symbol != new_sym_str {
@@ -237,9 +205,9 @@ impl SystemMonitor {
                                     .set_symbol(
                                         &new_sym_str,
                                         vec![
-                                            datafeed::symbols::SymbolDataType::Tick,
-                                            datafeed::symbols::SymbolDataType::Dom,
-                                            datafeed::symbols::SymbolDataType::Quote,
+                                            SymbolDataType::Tick,
+                                            SymbolDataType::Dom,
+                                            SymbolDataType::Quote,
                                         ],
                                     )
                                     .await;
@@ -271,8 +239,6 @@ impl SystemMonitor {
         monitor
     }
 
-    // ── System metrics loop ───────────────────────────────────────────────────
-
     fn start_system_loop(&self, cx: &mut Context<Self>) {
         cx.spawn(async move |this, cx| {
             loop {
@@ -289,8 +255,6 @@ impl SystemMonitor {
         .detach();
     }
 
-    // ── ZeroMQ datafeed loop ──────────────────────────────────────────────────
-
     fn start_datafeed_loop(&mut self, cx: &mut Context<Self>) {
         let Some(mut rx) = self.datafeed_rx.take() else {
             return;
@@ -304,13 +268,10 @@ impl SystemMonitor {
 
         cx.spawn(async move |_this, cx| {
             loop {
-                // Poll for messages in a non-blocking way
                 match rx.try_recv() {
                     Ok((symbol, data_type, json)) => {
-                        // Only process messages for current symbol
                         let current = current_symbol.read().await;
 
-                        // Only process messages for current symbol
                         if symbol != *current {
                             continue;
                         }
@@ -318,11 +279,9 @@ impl SystemMonitor {
                         match data_type {
                             DataType::Tick => {
                                 if let Ok(ticks) = serde_json::from_str::<Vec<TickData>>(&json) {
-                                    // Update domain state first
                                     for td in ticks.clone() {
                                         market_data.update_tick(td).await;
                                     }
-                                    // Then update UI
                                     for td in ticks {
                                         let ui_tick = transform_tick(&td, &symbol);
                                         let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
@@ -335,9 +294,7 @@ impl SystemMonitor {
                             }
                             DataType::Dom => {
                                 if let Ok(dom) = serde_json::from_str::<DomData>(&json) {
-                                    // Update domain state first
                                     market_data.update_dom(dom.clone()).await;
-                                    // Then update UI
                                     let ui_dom = transform_dom(&dom, &symbol);
                                     dom_entity.update(cx, |view, cx| {
                                         view.update_dom(ui_dom);
@@ -347,18 +304,14 @@ impl SystemMonitor {
                             }
                             DataType::Quote => {
                                 if let Ok(quote) = serde_json::from_str::<QuoteData>(&json) {
-                                    // Update domain state first
                                     market_data.update_quote(quote.clone()).await;
-                                    // Then update UI
                                     let ui_quote = transform_quote(&quote, &symbol);
 
-                                    // Update quotes view (OPEN, HIGH, LOW, RANGE)
                                     quotes_entity.update(cx, |view, cx| {
                                         view.update_quote(ui_quote.clone());
                                         cx.notify();
                                     });
 
-                                    // Update DOM: best bid/ask from Quote (faster than Tick)
                                     dom_entity.update(cx, |view, cx| {
                                         if let (Some(bid), Some(ask)) =
                                             (ui_quote.bid_price, ui_quote.ask_price)
@@ -373,7 +326,6 @@ impl SystemMonitor {
                         }
                     }
                     Err(mpsc::error::TryRecvError::Empty) => {
-                        // No message yet — yield to avoid busy-spin
                         smol::Timer::after(Duration::from_millis(10)).await;
                     }
                     Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -384,8 +336,6 @@ impl SystemMonitor {
         })
         .detach();
     }
-
-    // ── System data collection ────────────────────────────────────────────────
 
     fn collect_metrics(&mut self, cx: &mut Context<Self>) {
         self.sys.refresh_specifics(
@@ -405,8 +355,6 @@ impl SystemMonitor {
         cx.notify();
     }
 
-    // ── Status bar (shared across all tabs) ───────────────────────────────────
-
     fn render_status_bar_view(&self, cx: &Context<Self>) -> impl IntoElement {
         render_status_bar(
             StatusBarData {
@@ -417,8 +365,6 @@ impl SystemMonitor {
         )
     }
 
-    // ── OrderFlow tab ─────────────────────────────────────────────────────────
-
     fn render_orderflow_tab(
         &self,
         _window: &mut Window,
@@ -426,10 +372,8 @@ impl SystemMonitor {
     ) -> impl IntoElement {
         let select_entity = self.symbol_select.clone();
 
-        // Two-panel layout: DOM on the LEFT, Times & Sales on the RIGHT (fixed widths)
         v_flex()
             .size_full()
-            // Quotes only (no selector)
             .child(
                 h_flex()
                     .w_full()
@@ -441,7 +385,6 @@ impl SystemMonitor {
                     .bg(cx.theme().tab_bar)
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    // Quotes on the right, fills available space
                     .child(
                         div()
                             .flex_1()
@@ -450,18 +393,15 @@ impl SystemMonitor {
                             .child(self.quotes_view.clone()),
                     ),
             )
-            // DOM and Times & Sales panels
             .child(
                 h_flex()
                     .flex_1()
-                    // DOM panel (fixed width on LEFT)
                     .child(
                         v_flex()
                             .w(px(310.))
                             .h_full()
                             .border_r_1()
                             .border_color(cx.theme().border)
-                            // Sub-header
                             .child(
                                 h_flex()
                                     .px_2()
@@ -476,12 +416,10 @@ impl SystemMonitor {
                             )
                             .child(div().flex_1().child(self.dom_view.clone())),
                     )
-                    // Times & Sales panel (fills remaining space on RIGHT)
                     .child(
                         v_flex()
                             .flex_1()
                             .h_full()
-                            // Sub-header with selector
                             .child(
                                 h_flex()
                                     .px_2()
@@ -501,10 +439,6 @@ impl SystemMonitor {
             )
     }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Render
-// ──────────────────────────────────────────────────────────────────────────────
 
 impl Render for SystemMonitor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -549,14 +483,9 @@ impl Render for SystemMonitor {
                         MonitorTab::Settings => this.child(div()),
                     }),
             )
-            // Status bar present on ALL tabs
             .child(self.render_status_bar_view(cx))
     }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Entry point
-// ──────────────────────────────────────────────────────────────────────────────
 
 impl Drop for SystemMonitor {
     fn drop(&mut self) {
