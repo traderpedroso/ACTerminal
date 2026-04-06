@@ -50,7 +50,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }} --bin acterminal
 
       - name: Create app bundle
         run: |
@@ -86,7 +86,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target x86_64-pc-windows-msvc
+          cargo build --release --target x86_64-pc-windows-msvc --bin acterminal
 
       - name: Create app bundle
         run: |
@@ -113,7 +113,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config libasound2-dev
+          sudo apt-get install -y libssl-dev pkg-config libasound2-dev libx11-dev libxkbcommon-dev libgl1-mesa-dev libwayland-dev
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -122,7 +122,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu
+          cargo build --release --target x86_64-unknown-linux-gnu --bin acterminal
 
       - name: Create tarball
         run: |
