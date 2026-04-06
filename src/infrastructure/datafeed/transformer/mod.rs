@@ -6,17 +6,6 @@ pub fn needs_inversion(symbol: &str) -> bool {
     matches!(symbol, "6J" | "6L" | "6M" | "6C" | "6S")
 }
 
-pub fn get_tick_size_for_symbol(symbol: &str) -> f64 {
-    match symbol {
-        "6L" => 0.5,
-        "6J" => 0.01,
-        "6M" => 0.0001,
-        "6C" => 0.0001,
-        "6S" => 0.00001,
-        _ => 0.00005,
-    }
-}
-
 pub fn get_decimals_for_symbol(symbol: &str) -> usize {
     match symbol {
         "6L" => 2,
@@ -73,31 +62,21 @@ pub fn transform_tick(tick: &TickData, symbol: &str) -> UiTickData {
 
     if needs_inversion(symbol) {
         let price = invert_price(tick.price, symbol);
-        let bid_price = invert_price(tick.ask_price, symbol);
-        let ask_price = invert_price(tick.bid_price, symbol);
         let side = invert_side(raw_side);
 
         UiTickData {
-            id: tick.id,
             time: format!("{:02}:{:02}:{:02}", h, m, s),
             price,
             size: tick.size,
             side,
-            bid_price,
-            ask_price,
-            symbol: symbol.to_string(),
             decimals,
         }
     } else {
         UiTickData {
-            id: tick.id,
             time: format!("{:02}:{:02}:{:02}", h, m, s),
             price: tick.price,
             size: tick.size,
             side: raw_side,
-            bid_price: tick.bid_price,
-            ask_price: tick.ask_price,
-            symbol: symbol.to_string(),
             decimals,
         }
     }
@@ -105,17 +84,12 @@ pub fn transform_tick(tick: &TickData, symbol: &str) -> UiTickData {
 
 pub fn transform_dom(dom: &DomData, symbol: &str) -> UiDomData {
     let invert = needs_inversion(symbol);
-    let tick_size = get_tick_size_for_symbol(symbol);
     let decimals = get_decimals_for_symbol(symbol);
 
     let mut result = UiDomData {
-        contract_id: dom.contract_id,
-        timestamp: dom.timestamp.clone(),
         bids: Vec::new(),
         offers: Vec::new(),
-        symbol: symbol.to_string(),
         decimals,
-        tick_size,
     };
 
     if invert {
@@ -185,36 +159,22 @@ pub fn transform_quote(quote: &QuoteData, symbol: &str) -> UiQuoteData {
 
     if invert {
         UiQuoteData {
-            timestamp: quote.timestamp.clone(),
-            contract_id: quote.contract_id,
             bid_price: quote.entries.offer.as_ref().map(|e| inv(e.price)),
-            bid_size: quote.entries.offer.as_ref().map(|e| e.size),
             ask_price: quote.entries.bid.as_ref().map(|e| inv(e.price)),
-            ask_size: quote.entries.bid.as_ref().map(|e| e.size),
             last_price: quote.entries.trade.as_ref().map(|e| inv(e.price)),
-            last_size: quote.entries.trade.as_ref().map(|e| e.size),
             high_price: quote.entries.low_price.as_ref().map(|e| inv(e.price)),
             low_price: quote.entries.high_price.as_ref().map(|e| inv(e.price)),
             open_price: quote.entries.opening_price.as_ref().map(|e| inv(e.price)),
-            volume: quote.entries.total_trade_volume.as_ref().map(|e| e.size),
-            symbol: symbol.to_string(),
             decimals,
         }
     } else {
         UiQuoteData {
-            timestamp: quote.timestamp.clone(),
-            contract_id: quote.contract_id,
             bid_price: quote.entries.bid.as_ref().map(|e| e.price),
-            bid_size: quote.entries.bid.as_ref().map(|e| e.size),
             ask_price: quote.entries.offer.as_ref().map(|e| e.price),
-            ask_size: quote.entries.offer.as_ref().map(|e| e.size),
             last_price: quote.entries.trade.as_ref().map(|e| e.price),
-            last_size: quote.entries.trade.as_ref().map(|e| e.size),
             high_price: quote.entries.high_price.as_ref().map(|e| e.price),
             low_price: quote.entries.low_price.as_ref().map(|e| e.price),
             open_price: quote.entries.opening_price.as_ref().map(|e| e.price),
-            volume: quote.entries.total_trade_volume.as_ref().map(|e| e.size),
-            symbol: symbol.to_string(),
             decimals,
         }
     }

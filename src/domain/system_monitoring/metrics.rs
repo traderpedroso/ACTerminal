@@ -1,16 +1,14 @@
 use sysinfo::{Pid, System};
 
 pub struct SystemMetrics {
-    name: String,
     pid: Pid,
     cpu_usage: f32,
     memory_bytes: u64,
 }
 
 impl SystemMetrics {
-    pub fn new(name: &str) -> Self {
+    pub fn new(_name: &str) -> Self {
         Self {
-            name: name.to_string(),
             pid: Pid::from_u32(std::process::id()),
             cpu_usage: 0.0,
             memory_bytes: 0,

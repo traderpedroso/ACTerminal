@@ -30,14 +30,10 @@ use crate::infrastructure::datafeed::{
 };
 use crate::presentation::{
     DomView, ProcessTableDelegate, QuotesView, StatusBarData,
-    TimesAndSalesEntry, TimesAndSalesView, render_status_bar,
+    TicksEntry, TicksView, render_status_bar,
 };
 
 actions!(acterminal, [Quit]);
-
-const INTERVAL: Duration = Duration::from_millis(500);
-
-const MAX_ROWS: usize = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum MonitorTab {
@@ -64,14 +60,13 @@ pub struct SystemMonitor {
     sys: System,
     active_tab: MonitorTab,
     process_table: Entity<TableState<ProcessTableDelegate>>,
-    times_and_sales: Entity<TimesAndSalesView>,
+    ticks_view: Entity<TicksView>,
     dom_view: Entity<DomView>,
     quotes_view: Entity<QuotesView>,
     datafeed_rx: Option<mpsc::Receiver<(String, DataType, String)>>,
     symbol_select: Entity<SelectState<Vec<SharedString>>>,
     current_symbol: Arc<RwLock<String>>,
     subscriber: Arc<dyn DataFeedProvider>,
-    symbol_manager: Arc<SymbolManager>,
 }
 
 impl SystemMonitor {
@@ -86,7 +81,7 @@ impl SystemMonitor {
                 .col_movable(false)
         });
 
-        let times_and_sales = cx.new(|_| TimesAndSalesView::new());
+        let ticks_view = cx.new(|_| TicksView::new());
         let dom_view = cx.new(|_| DomView::new());
         let quotes_view = cx.new(|_| QuotesView::new());
 
@@ -176,19 +171,18 @@ impl SystemMonitor {
             sys,
             active_tab: MonitorTab::OrderFlow,
             process_table,
-            times_and_sales: times_and_sales.clone(),
+            ticks_view: ticks_view.clone(),
             dom_view: dom_view.clone(),
             quotes_view: quotes_view.clone(),
             datafeed_rx: Some(datafeed_rx),
             symbol_select: symbol_select.clone(),
             current_symbol: Arc::new(RwLock::new(initial_symbol.to_string())),
             subscriber: subscriber.clone(),
-            symbol_manager: symbol_manager.clone(),
         };
 
         cx.subscribe(&symbol_select, {
             let symbol_manager = symbol_manager.clone();
-            let ts_entity = times_and_sales.clone();
+            let ts_entity = ticks_view.clone();
             let dom_entity = dom_view.clone();
             let quotes_entity = quotes_view.clone();
             move |this: &mut SystemMonitor, _entity, event: &SelectEvent<Vec<SharedString>>, cx| {
@@ -242,7 +236,7 @@ impl SystemMonitor {
     fn start_system_loop(&self, cx: &mut Context<Self>) {
         cx.spawn(async move |this, cx| {
             loop {
-                Timer::after(INTERVAL).await;
+                Timer::after(Duration::from_millis(500)).await;
                 let result = this.update(cx, |this, cx| {
                     this.collect_metrics(cx);
                     cx.notify();
@@ -260,7 +254,7 @@ impl SystemMonitor {
             return;
         };
 
-        let ts_entity = self.times_and_sales.clone();
+        let ts_entity = self.ticks_view.clone();
         let dom_entity = self.dom_view.clone();
         let quotes_entity = self.quotes_view.clone();
         let current_symbol = self.current_symbol.clone();
@@ -284,7 +278,7 @@ impl SystemMonitor {
                                     }
                                     for td in ticks {
                                         let ui_tick = transform_tick(&td, &symbol);
-                                        let entry = TimesAndSalesEntry::from_ui_tick_data(&ui_tick);
+                                        let entry = TicksEntry::from_ui_tick_data(&ui_tick);
                                         ts_entity.update(cx, |view, cx| {
                                             view.push(entry);
                                             cx.notify();
@@ -434,7 +428,7 @@ impl SystemMonitor {
                                     .child("Times & Sales")
                                     .child(Select::new(&select_entity).small().w(px(100.))),
                             )
-                            .child(div().flex_1().child(self.times_and_sales.clone())),
+                            .child(div().flex_1().child(self.ticks_view.clone())),
                     ),
             )
     }

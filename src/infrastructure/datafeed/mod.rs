@@ -18,6 +18,7 @@ pub enum DataFeedBackend {
     Zenoh,
 }
 
+#[allow(dead_code)]
 pub trait DataFeedProvider: Send + Sync {
     fn subscribe(&self, symbol: &str, data_type: DataType);
     fn unsubscribe(&self, symbol: &str, data_type: DataType);
