@@ -193,6 +193,13 @@ impl Render for DomView {
         let total_bids: u64 = ladder.iter().map(|(_, b, _, _, _)| *b as u64).sum();
         let total_asks: u64 = ladder.iter().map(|(_, _, a, _, _)| *a as u64).sum();
 
+        let total = (total_bids + total_asks) as f64;
+        let imb_pct = if total > 0.0 {
+            ((total_bids as f64 - total_asks as f64) / total) * 100.0
+        } else {
+            0.0
+        };
+
         let bid_label = Hsla {
             h: 210.0 / 360.0,
             s: 0.70,
@@ -210,6 +217,14 @@ impl Render for DomView {
             s: 0.0,
             l: 1.0,
             a: 0.05,
+        };
+
+        let imb_color = if imb_pct > 0.0 {
+            bid_label
+        } else if imb_pct < 0.0 {
+            ask_label
+        } else {
+            cx.theme().muted_foreground
         };
 
         v_flex()
@@ -232,15 +247,15 @@ impl Render for DomView {
                             .justify_end()
                             .pr(px(3.))
                             .text_color(bid_label)
-                            .child("Bids"),
+                            .child(format!("{}", total_bids)),
                     )
                     .child(
                         div()
                             .w(px(price_col_w))
                             .flex()
                             .justify_center()
-                            .text_color(cx.theme().muted_foreground)
-                            .child("Price"),
+                            .text_color(imb_color)
+                            .child(format!("{:.1}%", imb_pct.abs())),
                     )
                     .child(
                         div()
@@ -249,7 +264,7 @@ impl Render for DomView {
                             .justify_start()
                             .pl(px(3.))
                             .text_color(ask_label)
-                            .child("Asks"),
+                            .child(format!("{}", total_asks)),
                     ),
             )
             .child(
@@ -445,54 +460,6 @@ impl Render for DomView {
                                 )
                         },
                     ))),
-            )
-            .child(
-                h_flex()
-                    .w_full()
-                    .justify_center()
-                    .px_1()
-                    .py_1()
-                    .border_t_1()
-                    .border_color(cx.theme().border)
-                    .bg(cx.theme().tab_bar)
-                    .text_xs()
-                    .font_weight(FontWeight::BOLD)
-                    .child(
-                        div()
-                            .w(px(bar_col_w))
-                            .flex()
-                            .justify_end()
-                            .pr(px(3.))
-                            .text_color(bid_label)
-                            .child(format!("{}", total_bids)),
-                    )
-                    .child(div().w(px(price_col_w)).flex().justify_center().child({
-                        let total = (total_bids + total_asks) as f64;
-                        if total > 0.0 {
-                            let imb = ((total_bids as f64 - total_asks as f64) / total) * 100.0;
-                            let imb_color = if imb > 0.0 {
-                                bid_label
-                            } else if imb < 0.0 {
-                                ask_label
-                            } else {
-                                cx.theme().muted_foreground
-                            };
-                            div()
-                                .text_color(imb_color)
-                                .child(format!("{:.1}%", imb.abs()))
-                        } else {
-                            div().text_color(cx.theme().muted_foreground).child("0%")
-                        }
-                    }))
-                    .child(
-                        div()
-                            .w(px(bar_col_w))
-                            .flex()
-                            .justify_start()
-                            .pl(px(3.))
-                            .text_color(ask_label)
-                            .child(format!("{}", total_asks)),
-                    ),
             )
             .into_any_element()
     }
