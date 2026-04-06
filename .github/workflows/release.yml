@@ -21,12 +21,37 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Check version changed
-        id: check
-        uses: radumarias/action-check-version-changed-rust@v1
         with:
-          file: Cargo.toml
+          fetch-depth: 0
+
+      - name: Get current version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "new_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Check if version changed
+        id: check
+        run: |
+          CURRENT_VERSION=${{ steps.version.outputs.new_version }}
+          git fetch --tags
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, this is a new release"
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+          else
+            PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
+            echo "Previous version: $PREVIOUS_VERSION"
+            echo "Current version: $CURRENT_VERSION"
+            
+            if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+              echo "version_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "version_changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
 
   build-macos:
     name: Build macOS (${{ matrix.target }})
