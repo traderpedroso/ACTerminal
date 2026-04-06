@@ -105,9 +105,7 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Install cargo-xwin
-        uses: rust-cross/cargo-xwin-action@v2
-        with:
-          version: latest
+        uses: taiki-e/install-action@cargo-xwin
 
       - name: Build release
         run: |
