@@ -1,0 +1,22 @@
+[package]
+name = "gpui-component-assets"
+description = "Default bundled assets for GPUI Component."
+keywords = ["desktop", "gpui", "shadcn", "ui", "uikit"]
+license = "Apache-2.0"
+documentation = "https://docs.rs/gpui-component"
+homepage = "https://longbridge.github.io/gpui-component"
+repository = "https://github.com/longbridge/gpui-component"
+readme = "README.md"
+edition = "2024"
+version = "0.5.1"
+
+[lib]
+doctest = false
+
+[dependencies]
+anyhow = "1"
+gpui = { git = "https://github.com/zed-industries/zed" }
+log = "0.4"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rust-embed = { version = "8.7.2", features = ["interpolate-folder-path", "include-exclude"] }
