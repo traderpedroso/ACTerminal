@@ -91,10 +91,12 @@ jobs:
             target/${{ matrix.target }}/release/bundle/macos/*.app
 
   build-windows:
-    name: Build Windows
+    name: Build Windows (x64)
     needs: check-version
     if: needs.check-version.outputs.version_changed == 'true'
-    runs-on: ubuntu-latest
+    # Usando a imagem nativa do Windows (igual ao Zed, mas no plano gratuito)
+    runs-on: windows-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -102,51 +104,38 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           targets: x86_64-pc-windows-msvc
 
-      - name: Install cargo-xwin
-        uses: taiki-e/install-action@cargo-xwin
+      # Opcional: Cache para acelerar builds futuros
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release
+        # Usamos o shell 'pwsh' (PowerShell Core) para consistência com o Windows
+        shell: pwsh
         run: |
-          cargo build --release --target x86_64-pc-windows-msvc
+          cargo build --release --target x86_64-pc-windows-msvc --bin acterminal
 
-      - name: Create app bundle
+      # O Zed costuma gerar apenas o .exe ou um instalador simples. 
+      # Se o cargo-bundle falhar (ele é instável no Windows), use esta etapa manual:
+      - name: Prepare Artifact
+        shell: pwsh
         run: |
-          cargo install cargo-bundle --locked || true
-          cargo bundle --release --target x86_64-pc-windows-msvc
+          mkdir release-dist
+          copy target/x86_64-pc-windows-msvc/release/acterminal.exe release-dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-x86_64-bundle
-          path: |
-            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exebuild-windows:
-                name: Build Windows
-                runs-on: windows-latest # <--- ISO resolve o erro do shaders_bytes.rs
-                steps:
-                  - name: Checkout code
-                    uses: actions/checkout@v4
-
-                  - name: Install Rust
-                    uses: dtolnay/rust-toolchain@stable
-                    with:
-                      targets: x86_64-pc-windows-msvc
-
-                  # O windows-latest já vem com o Windows SDK e compiladores de shader.
-                  # O cargo build vai funcionar direto aqui.
-                  - name: Build release
-                    run: |
-                      cargo build --release --target x86_64-pc-windows-msvc
-
-                  # Se você não tiver o script bundle-windows.ps1 do zed,
-                  # use o cargo-packager ou apenas suba o .exe
-                  - name: Upload Artifact
-                    uses: actions/upload-artifact@v4
-                    with:
-                      name: windows-binaries
-                      path: target/x86_64-pc-windows-msvc/release/acterminal.exe
+          name: windows-x86_64-binary
+          path: release-dist/acterminal.exe
 
   build-linux:
     name: Build Linux
