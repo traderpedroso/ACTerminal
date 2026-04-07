@@ -68,11 +68,9 @@ icon = ["assets/acterminal.icns", "assets/acterminal.ico", "assets/acterminal.pn
 copyright = "SOSTRADER Copyright © 2024"
 
 
-# Configuração para compilar Windows a partir do Mac
-[target.x86_64-pc-windows-gnu]
-linker = "x86_64-w64-mingw32-gcc"
-ar = "x86_64-w64-mingw32-ar"
-
-# Configuração para Mac ARM (Geralmente o Mac Intel já tem o linker nativo)
-[target.aarch64-apple-darwin]
-linker = "clang"
+[package.metadata.packager]
+product_name = "ACTerminal"
+identifier = "com.exemplo.acterminal"
+version = "0.1.0"
+copyright = "SOSTRADER Copyright © 2024"
+icons = ["assets/acterminal.icns", "assets/acterminal.ico", "assets/acterminal.png"]
