@@ -138,7 +138,7 @@ jobs:
           path: release-dist/acterminal.exe
 
   build-linux:
-    name: Build Linux
+    name: Build Linux (x86_64)
     needs: check-version
     if: needs.check-version.outputs.version_changed == 'true'
     runs-on: ubuntu-latest
@@ -149,28 +149,61 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config libasound2-dev libx11-dev libxkbcommon-dev libgl1-mesa-dev libwayland-dev
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            libasound2-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libgl1-mesa-dev \
+            libwayland-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libdbus-1-dev \
+            libvulkan-dev \
+            cmake
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           targets: x86_64-unknown-linux-gnu
+
+      # Opcional: Cache para acelerar os builds
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-linux-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu
+          cargo build --release --target x86_64-unknown-linux-gnu --bin acterminal
 
       - name: Create tarball
         run: |
-          mkdir -p release
-          cp target/x86_64-unknown-linux-gnu/release/acterminal release/
-          tar -czvf acterminal-${{ needs.check-version.outputs.new_version }}-x86_64-unknown-linux-gnu.tar.gz -C release .
+          mkdir -p release-linux
+          # Copia o binário final
+          cp target/x86_64-unknown-linux-gnu/release/acterminal release-linux/
+          
+          # Se você tiver pastas de assets, copie-as também:
+          # cp -r assets/ release-linux/
+          
+          # Cria o arquivo compactado com a versão correta
+          tar -czvf acterminal-linux-x86_64.tar.gz -C release-linux .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
-          path: "*.tar.gz"
+          path: acterminal-linux-x86_64.tar.gz
 
   create-release:
     name: Create GitHub Release
