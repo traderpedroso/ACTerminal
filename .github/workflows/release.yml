@@ -72,6 +72,9 @@ jobs:
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
 
+      - name: Build Binary
+        run: cargo build --release --target ${{ matrix.target }}
+
       - name: Package (dmg)
         run: |
           cargo packager --release --target ${{ matrix.target }} --formats dmg
@@ -80,7 +83,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.target }}
-          # cargo-packager gera em target/<target>/release/
           path: target/${{ matrix.target }}/release/*.dmg
 
   build-windows:
@@ -109,6 +111,9 @@ jobs:
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
 
+      - name: Build Binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
       - name: Package (nsis installer)
         shell: pwsh
         run: |
@@ -119,8 +124,6 @@ jobs:
         with:
           name: windows-x86_64
           path: target/x86_64-pc-windows-msvc/release/*.exe
-
-
 
   create-release:
     name: Create GitHub Release
@@ -143,7 +146,7 @@ jobs:
       - name: Setup Git
         run: |
           git config user.name "GitHub Actions"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@://github.com"
 
       - name: Create and push tag
         run: |
