@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 env:
@@ -37,7 +37,7 @@ jobs:
           CURRENT_VERSION=${{ steps.version.outputs.new_version }}
           git fetch --tags
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          
+
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, this is a new release"
             echo "version_changed=true" >> $GITHUB_OUTPUT
@@ -45,7 +45,7 @@ jobs:
             PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
             echo "Previous version: $PREVIOUS_VERSION"
             echo "Current version: $CURRENT_VERSION"
-            
+
             if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
               echo "version_changed=true" >> $GITHUB_OUTPUT
             else
@@ -75,7 +75,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target ${{ matrix.target }} --bin acterminal
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Create app bundle
         run: |
@@ -109,7 +109,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target x86_64-pc-windows-msvc --bin acterminal
+          cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Create app bundle
         run: |
@@ -122,7 +122,31 @@ jobs:
           name: windows-x86_64-bundle
           path: |
             target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exebuild-windows:
+                name: Build Windows
+                runs-on: windows-latest # <--- ISO resolve o erro do shaders_bytes.rs
+                steps:
+                  - name: Checkout code
+                    uses: actions/checkout@v4
+
+                  - name: Install Rust
+                    uses: dtolnay/rust-toolchain@stable
+                    with:
+                      targets: x86_64-pc-windows-msvc
+
+                  # O windows-latest já vem com o Windows SDK e compiladores de shader.
+                  # O cargo build vai funcionar direto aqui.
+                  - name: Build release
+                    run: |
+                      cargo build --release --target x86_64-pc-windows-msvc
+
+                  # Se você não tiver o script bundle-windows.ps1 do zed,
+                  # use o cargo-packager ou apenas suba o .exe
+                  - name: Upload Artifact
+                    uses: actions/upload-artifact@v4
+                    with:
+                      name: windows-binaries
+                      path: target/x86_64-pc-windows-msvc/release/acterminal.exe
 
   build-linux:
     name: Build Linux
@@ -145,7 +169,7 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu --bin acterminal
+          cargo build --release --target x86_64-unknown-linux-gnu
 
       - name: Create tarball
         run: |
